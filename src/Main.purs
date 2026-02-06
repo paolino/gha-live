@@ -334,7 +334,7 @@ renderRefItem parts =
         HH.span
           [ HP.class_ (HH.ClassName "tree-ref-title") ]
           [ HH.text
-              (" " <> truncate 24 parts.target.title)
+              (" " <> truncate 44 parts.target.title)
           ]
     ]
   where
