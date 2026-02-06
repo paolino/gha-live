@@ -6,7 +6,7 @@ import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Decode.Class (decodeJson)
 import Data.Argonaut.Encode.Class (encodeJson)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Array (filter, foldl, index, length, nub, null, snoc)
+import Data.Array (any, filter, foldl, index, length, nub, null, snoc)
 import Data.Either (Either(..), hush)
 import Data.Int (ceil, fromString, toNumber) as Int
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -615,7 +615,8 @@ refLabel = case _ of
 
 addTarget :: Target -> Array Target -> Array Target
 addTarget t ts =
-  nub $ snoc (filter (\x -> x.url /= t.url) ts) t
+  if any (\x -> x.url == t.url) ts then ts
+  else snoc ts t
 
 -- localStorage helpers
 
