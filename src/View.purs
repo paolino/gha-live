@@ -12,7 +12,6 @@ import Data.Maybe (Maybe(..))
 import Data.String.CodeUnits (length) as S
 import Halogen.HTML as HH
 import Halogen.HTML.Core (ClassName(..), ElemName(..))
-import Halogen.HTML.Properties as HP
 import Halogen.Svg.Attributes as SA
 import Halogen.Svg.Attributes.CSSLength (CSSLength(..))
 import Halogen.Svg.Attributes.Color (Color(..))
@@ -191,8 +190,6 @@ svgA
 svgA url classes children =
   SE.element (ElemName "a")
     [ SA.href url
-    , HP.attr (HH.AttrName "target") "_blank"
-    , HP.attr (HH.AttrName "rel") "noopener"
     , SA.classes classes
     ]
     children
