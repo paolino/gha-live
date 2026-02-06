@@ -2,10 +2,14 @@ module Main where
 
 import Prelude
 
-import Data.Array (filter, index, null)
-import Data.Either (Either(..))
+import Data.Argonaut.Core (Json, stringify)
+import Data.Argonaut.Decode.Class (decodeJson)
+import Data.Argonaut.Encode.Class (encodeJson)
+import Data.Argonaut.Parser (jsonParser)
+import Data.Array (filter, index, nub, null, snoc)
+import Data.Either (Either(..), hush)
 import Data.Int (fromString) as Int
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), drop, indexOf, split, take)
 import Data.String.CodeUnits as SCU
 import Effect (Effect)
@@ -24,13 +28,19 @@ import Pipeline (RunView, buildPipeline)
 import View (renderPipeline)
 import Web.HTML (window)
 import Web.HTML.Location (search)
-import Web.HTML.Window (location)
+import Web.HTML.Window (localStorage, location)
 import Web.HTML.Window as Window
+import Web.Storage.Storage as Storage
 
 main :: Effect Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
   runUI rootComponent unit body
+
+type Target =
+  { url :: String
+  , label :: String
+  }
 
 type State =
   { config :: Maybe Config
@@ -39,6 +49,7 @@ type State =
   , loading :: Boolean
   , formUrl :: String
   , formToken :: String
+  , targets :: Array Target
   }
 
 data Action
@@ -48,6 +59,18 @@ data Action
   | SetFormUrl String
   | SetFormToken String
   | Submit
+  | Back
+  | SelectTarget Target
+  | RemoveTarget Target
+
+storageKeyTargets :: String
+storageKeyTargets = "gha-live-targets"
+
+storageKeyToken :: String
+storageKeyToken = "gha-live-token"
+
+storageKeyUrl :: String
+storageKeyUrl = "gha-live-url"
 
 rootComponent
   :: forall q i o. H.Component q i o Aff
@@ -60,6 +83,7 @@ rootComponent =
         , loading: false
         , formUrl: ""
         , formToken: ""
+        , targets: []
         }
     , render
     , eval: H.mkEval H.defaultEval
@@ -73,70 +97,118 @@ render state = case state.config of
   Nothing -> renderForm state
   Just _ ->
     if state.loading && null state.pipeline then
-      HH.div_ [ HH.text "Loading..." ]
+      HH.div_
+        [ renderBackBtn
+        , HH.text "Loading..."
+        ]
     else
       HH.div_
-        ( case state.error of
-            Just err ->
-              [ HH.div
-                  [ HP.class_ (HH.ClassName "error") ]
-                  [ HH.text err ]
-              ]
-            Nothing -> []
+        ( [ renderBackBtn ]
+            <> case state.error of
+              Just err ->
+                [ HH.div
+                    [ HP.class_ (HH.ClassName "error") ]
+                    [ HH.text err ]
+                ]
+              Nothing -> []
             <>
               if null state.pipeline then
                 [ HH.div
                     [ HP.class_ (HH.ClassName "muted") ]
-                    [ HH.text "No workflow runs found." ]
+                    [ HH.text
+                        "No workflow runs found."
+                    ]
                 ]
               else
-                [ renderPipeline OpenUrl state.pipeline ]
+                [ renderPipeline OpenUrl state.pipeline
+                ]
         )
+
+renderBackBtn
+  :: forall w. HH.HTML w Action
+renderBackBtn =
+  HH.button
+    [ HE.onClick \_ -> Back
+    , HP.class_ (HH.ClassName "btn-back")
+    ]
+    [ HH.text "Back" ]
 
 renderForm
   :: forall w. State -> HH.HTML w Action
 renderForm state =
   HH.div
     [ HP.class_ (HH.ClassName "form-container") ]
-    [ HH.h1_ [ HH.text "GHA Live" ]
-    , HH.p
-        [ HP.class_ (HH.ClassName "muted") ]
-        [ HH.text "Paste a GitHub URL and token to watch CI live."
+    ( [ HH.h1_ [ HH.text "GHA Live" ]
+      , HH.p
+          [ HP.class_ (HH.ClassName "muted") ]
+          [ HH.text
+              "Paste a GitHub URL and token to watch CI live."
+          ]
+      , HH.div
+          [ HP.class_ (HH.ClassName "form") ]
+          [ HH.input
+              [ HP.type_ HP.InputText
+              , HP.placeholder
+                  "https://github.com/owner/repo/pull/123"
+              , HP.value state.formUrl
+              , HE.onValueInput SetFormUrl
+              , HP.class_ (HH.ClassName "input")
+              ]
+          , HH.input
+              [ HP.type_ HP.InputPassword
+              , HP.placeholder "GitHub token"
+              , HP.value state.formToken
+              , HE.onValueInput SetFormToken
+              , HP.class_ (HH.ClassName "input")
+              ]
+          , HH.button
+              [ HE.onClick \_ -> Submit
+              , HP.class_ (HH.ClassName "btn")
+              ]
+              [ HH.text "Watch" ]
+          ]
+      , case state.error of
+          Just err ->
+            HH.div
+              [ HP.class_ (HH.ClassName "error") ]
+              [ HH.text err ]
+          Nothing -> HH.text ""
+      , HH.p
+          [ HP.class_ (HH.ClassName "hint") ]
+          [ HH.text
+              "URLs: .../pull/N, .../issues/N, .../tree/branch, .../commit/sha"
+          ]
+      ]
+        <> renderTargets state.targets
+    )
+
+renderTargets
+  :: forall w. Array Target -> Array (HH.HTML w Action)
+renderTargets targets
+  | null targets = []
+  | otherwise =
+      [ HH.div
+          [ HP.class_ (HH.ClassName "targets") ]
+          ( [ HH.h3_ [ HH.text "Recent" ] ]
+              <> map renderTarget targets
+          )
+      ]
+
+renderTarget
+  :: forall w. Target -> HH.HTML w Action
+renderTarget target =
+  HH.div
+    [ HP.class_ (HH.ClassName "target") ]
+    [ HH.span
+        [ HE.onClick \_ -> SelectTarget target
+        , HP.class_ (HH.ClassName "target-label")
         ]
-    , HH.div
-        [ HP.class_ (HH.ClassName "form") ]
-        [ HH.input
-            [ HP.type_ HP.InputText
-            , HP.placeholder
-                "https://github.com/owner/repo/pull/123"
-            , HP.value state.formUrl
-            , HE.onValueInput SetFormUrl
-            , HP.class_ (HH.ClassName "input")
-            ]
-        , HH.input
-            [ HP.type_ HP.InputPassword
-            , HP.placeholder "GitHub token"
-            , HP.value state.formToken
-            , HE.onValueInput SetFormToken
-            , HP.class_ (HH.ClassName "input")
-            ]
-        , HH.button
-            [ HE.onClick \_ -> Submit
-            , HP.class_ (HH.ClassName "btn")
-            ]
-            [ HH.text "Watch" ]
+        [ HH.text target.label ]
+    , HH.span
+        [ HE.onClick \_ -> RemoveTarget target
+        , HP.class_ (HH.ClassName "target-remove")
         ]
-    , case state.error of
-        Just err ->
-          HH.div
-            [ HP.class_ (HH.ClassName "error") ]
-            [ HH.text err ]
-        Nothing -> HH.text ""
-    , HH.p
-        [ HP.class_ (HH.ClassName "hint") ]
-        [ HH.text
-            "Accepted URLs: .../pull/N, .../tree/branch, .../commit/sha"
-        ]
+        [ HH.text "x" ]
     ]
 
 handleAction
@@ -145,40 +217,69 @@ handleAction
   -> H.HalogenM State Action () o Aff Unit
 handleAction = case _ of
   Initialize -> do
+    saved <- liftEffect loadSaved
+    H.modify_ _
+      { formUrl = saved.url
+      , formToken = saved.token
+      , targets = saved.targets
+      }
     qs <- liftEffect do
       w <- window
       loc <- location w
       search loc
     case parseConfig qs of
       Nothing -> pure unit
-      Just cfg -> do
-        H.modify_ _ { config = Just cfg, loading = true }
-        doFetch cfg
-        _ <- H.subscribe $ ticker 5000.0
-        pure unit
-  SetFormUrl url ->
+      Just cfg -> startWatching cfg
+  SetFormUrl url -> do
     H.modify_ _ { formUrl = url }
-  SetFormToken token ->
+    liftEffect $ saveField storageKeyUrl url
+  SetFormToken token -> do
     H.modify_ _ { formToken = token }
+    liftEffect $ saveField storageKeyToken token
   Submit -> do
     st <- H.get
     case parseGitHubUrl st.formUrl of
       Nothing ->
-        H.modify_ _ { error = Just "Invalid GitHub URL" }
+        H.modify_ _
+          { error = Just "Invalid GitHub URL" }
       Just { owner, repo, ref } ->
         let
           cfg =
-            { owner, repo, token: st.formToken, ref }
+            { owner
+            , repo
+            , token: st.formToken
+            , ref
+            }
+          target =
+            { url: st.formUrl
+            , label: owner <> "/" <> repo <> refLabel ref
+            }
         in
           do
-            H.modify_ _
-              { config = Just cfg
-              , loading = true
-              , error = Nothing
-              }
-            doFetch cfg
-            _ <- H.subscribe $ ticker 5000.0
-            pure unit
+            let
+              newTargets = addTarget target st.targets
+            H.modify_ _ { targets = newTargets }
+            liftEffect $ saveTargets newTargets
+            startWatching cfg
+  SelectTarget target -> do
+    H.modify_ _ { formUrl = target.url }
+    liftEffect $ saveField storageKeyUrl target.url
+    handleAction Submit
+  RemoveTarget target -> do
+    st <- H.get
+    let
+      newTargets = filter
+        (\t -> t.url /= target.url)
+        st.targets
+    H.modify_ _ { targets = newTargets }
+    liftEffect $ saveTargets newTargets
+  Back -> do
+    H.modify_ _
+      { config = Nothing
+      , pipeline = []
+      , error = Nothing
+      , loading = false
+      }
   Tick -> do
     st <- H.get
     case st.config of
@@ -187,6 +288,20 @@ handleAction = case _ of
   OpenUrl url -> liftEffect do
     w <- window
     void $ Window.open url "_blank" "" w
+
+startWatching
+  :: forall o
+   . Config
+  -> H.HalogenM State Action () o Aff Unit
+startWatching cfg = do
+  H.modify_ _
+    { config = Just cfg
+    , loading = true
+    , error = Nothing
+    }
+  doFetch cfg
+  _ <- H.subscribe $ ticker 5000.0
+  pure unit
 
 doFetch
   :: forall o
@@ -217,15 +332,72 @@ ticker ms = HS.makeEmitter \emit -> do
     liftEffect (emit Tick)
     loop emit
 
--- | Parse a GitHub URL into owner, repo, ref.
--- | Supports:
--- |   https://github.com/owner/repo/pull/123
--- |   https://github.com/owner/repo/tree/branch
--- |   https://github.com/owner/repo/commit/sha
--- |   https://github.com/owner/repo  (defaults to Branch "main")
+refLabel :: Ref -> String
+refLabel = case _ of
+  PR n -> " #" <> show n
+  SHA s -> " @" <> take 7 s
+  Branch b -> " (" <> b <> ")"
+
+addTarget :: Target -> Array Target -> Array Target
+addTarget t ts =
+  nub $ snoc (filter (\x -> x.url /= t.url) ts) t
+
+-- localStorage helpers
+
+type Saved =
+  { url :: String
+  , token :: String
+  , targets :: Array Target
+  }
+
+loadSaved :: Effect Saved
+loadSaved = do
+  w <- window
+  s <- localStorage w
+  url <- fromMaybe "" <$> Storage.getItem storageKeyUrl s
+  token <- fromMaybe "" <$>
+    Storage.getItem storageKeyToken s
+  targets <- loadTargets s
+  pure { url, token, targets }
+
+loadTargets :: Storage.Storage -> Effect (Array Target)
+loadTargets s = do
+  raw <- Storage.getItem storageKeyTargets s
+  pure $ case raw of
+    Nothing -> []
+    Just str -> case hush (jsonParser str) >>= decodeTargets of
+      Nothing -> []
+      Just ts -> ts
+
+decodeTargets :: Json -> Maybe (Array Target)
+decodeTargets json = case decodeJson json of
+  Left _ -> Nothing
+  Right (arr :: Array { url :: String, label :: String }) ->
+    Just arr
+
+saveTargets :: Array Target -> Effect Unit
+saveTargets targets = do
+  w <- window
+  s <- localStorage w
+  Storage.setItem storageKeyTargets
+    (stringify (encodeJson targets))
+    s
+
+saveField :: String -> String -> Effect Unit
+saveField key val = do
+  w <- window
+  s <- localStorage w
+  Storage.setItem key val s
+
+-- GitHub URL parsing
+
 parseGitHubUrl
   :: String
-  -> Maybe { owner :: String, repo :: String, ref :: Ref }
+  -> Maybe
+       { owner :: String
+       , repo :: String
+       , ref :: Ref
+       }
 parseGitHubUrl url =
   let
     stripped = stripPrefix' "https://github.com/" url
@@ -250,6 +422,10 @@ parseRefFromSegs segs =
       case Int.fromString n of
         Just i -> PR i
         Nothing -> Branch "main"
+    Just "issues", Just n ->
+      case Int.fromString n of
+        Just i -> PR i
+        Nothing -> Branch "main"
     Just "tree", Just b -> Branch b
     Just "commit", Just s -> SHA s
     _, _ -> Branch "main"
@@ -262,6 +438,8 @@ stripPrefix' prefix s =
 
 prefixLength :: String -> Int
 prefixLength = SCU.length
+
+-- Query param parsing (for backward compat)
 
 parseConfig :: String -> Maybe Config
 parseConfig qs = do
