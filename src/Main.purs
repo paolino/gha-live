@@ -500,7 +500,7 @@ renderForm state =
       , HH.p
           [ HP.class_ (HH.ClassName "muted") ]
           [ HH.text
-              "Watch GitHub Actions pipelines in real time."
+              "Watch GitHub Actions pipelines in real time. Runs entirely in your browser — no server, your token never leaves your machine."
           ]
       , HH.div
           [ HP.class_ (HH.ClassName "form") ]
@@ -597,6 +597,21 @@ renderForm state =
               , HH.li_
                   [ HH.text
                       "Click any job to open it on GitHub"
+                  ]
+              ]
+          , HH.h3_ [ HH.text "Privacy" ]
+          , HH.ul_
+              [ HH.li_
+                  [ HH.text
+                      "No backend — the app is a static page that runs in your browser"
+                  ]
+              , HH.li_
+                  [ HH.text
+                      "Your GitHub token is stored in localStorage and sent only to the GitHub API"
+                  ]
+              , HH.li_
+                  [ HH.text
+                      "Nothing is logged or transmitted to any third party"
                   ]
               ]
           ]
