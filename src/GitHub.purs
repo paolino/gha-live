@@ -143,7 +143,7 @@ ghFetch cfg path = do
       { headers:
           { "Accept": "application/vnd.github.v3+json"
           , "Authorization": "Bearer " <> cfg.token
-          , "Cache-Control": "no-cache"
+          , "If-None-Match": ""
           }
       }
     body <- resp.text
