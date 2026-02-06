@@ -6,7 +6,7 @@ import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Decode.Class (decodeJson)
 import Data.Argonaut.Encode.Class (encodeJson)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Array (filter, index, nub, null, snoc)
+import Data.Array (filter, index, length, nub, null, snoc)
 import Data.Either (Either(..), hush)
 import Data.Int (fromString) as Int
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -51,6 +51,7 @@ type State =
   , targets :: Array Target
   , interval :: Int
   , secondsLeft :: Int
+  , apiCalls :: Int
   }
 
 data Action
@@ -91,6 +92,7 @@ rootComponent =
         , targets: []
         , interval: 5
         , secondsLeft: 5
+        , apiCalls: 0
         }
     , render
     , eval: H.mkEval H.defaultEval
@@ -195,6 +197,10 @@ renderToolbar state =
             , HP.class_ (HH.ClassName "btn-small")
             ]
             [ HH.text "+" ]
+        , HH.text
+            ( " · " <> show state.apiCalls
+                <> " API calls"
+            )
         ]
     ]
 
@@ -400,16 +406,24 @@ doFetch
   -> H.HalogenM State Action () o Aff Unit
 doFetch cfg = do
   result <- H.liftAff (fetchPipeline cfg)
+  let
+    refCalls = case cfg.ref of
+      SHA _ -> 0
+      _ -> 1
   case result of
     Left err ->
       H.modify_ _
         { error = Just err, loading = false }
     Right { runs, jobs } ->
-      H.modify_ _
-        { pipeline = buildPipeline runs jobs
-        , error = Nothing
-        , loading = false
-        }
+      let
+        calls = refCalls + 1 + length runs
+      in
+        H.modify_ _
+          { pipeline = buildPipeline runs jobs
+          , error = Nothing
+          , loading = false
+          , apiCalls = calls
+          }
 
 ticker :: Number -> HS.Emitter Action
 ticker ms = HS.makeEmitter \emit -> do
