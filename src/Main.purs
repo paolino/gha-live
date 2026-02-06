@@ -1041,6 +1041,7 @@ doFetch cfg = do
   let
     refCalls = case cfg.ref of
       SHA _ -> 0
+      Default -> 2
       _ -> 1
     prTargets = case prsResult of
       Left _ -> []
@@ -1072,6 +1073,7 @@ doFetch cfg = do
             (map (\t -> " " <> t) prTitle)
       Branch b -> b
       SHA s -> take 7 s
+      Default -> "(default)"
   case runsResult of
     Left err ->
       H.modify_ _
@@ -1161,6 +1163,7 @@ refLabel = case _ of
   PR n -> " #" <> show n
   SHA s -> " @" <> take 7 s
   Branch b -> " (" <> b <> ")"
+  Default -> ""
 
 addTarget :: Target -> Array Target -> Array Target
 addTarget t ts =
@@ -1214,6 +1217,7 @@ loadConfig s = do
         "pr" -> PR <$> Int.fromString obj.refVal
         "sha" -> Just (SHA obj.refVal)
         "branch" -> Just (Branch obj.refVal)
+        "default" -> Just Default
         _ -> Nothing
       Just
         { owner: obj.owner
@@ -1266,6 +1270,7 @@ saveConfig cfg = do
       PR n -> { tag: "pr", val: show n }
       SHA s -> { tag: "sha", val: s }
       Branch b -> { tag: "branch", val: b }
+      Default -> { tag: "default", val: "" }
     json = encodeJson
       { owner: cfg.owner
       , repo: cfg.repo
@@ -1344,14 +1349,14 @@ parseRefFromSegs segs =
     Just "pull", Just n ->
       case Int.fromString n of
         Just i -> PR i
-        Nothing -> Branch "main"
+        Nothing -> Default
     Just "issues", Just n ->
       case Int.fromString n of
         Just i -> PR i
-        Nothing -> Branch "main"
+        Nothing -> Default
     Just "tree", Just b -> Branch b
     Just "commit", Just s -> SHA s
-    _, _ -> Branch "main"
+    _, _ -> Default
 
 stripPrefix' :: String -> String -> Maybe String
 stripPrefix' prefix s =
