@@ -631,6 +631,8 @@ renderForm state =
                   [ HH.text
                       "Open PRs are discovered automatically — hide any with "
                   , HH.code_ [ HH.text "x" ]
+                  , HH.text
+                      ", re-add the URL to unhide"
                   ]
               , HH.li_
                   [ HH.text
