@@ -179,6 +179,7 @@ render state = case state.config of
                           [ renderPipeline state.pipeline
                           ]
                   )
+              <> [ renderFooter ]
           )
       ]
 
@@ -464,6 +465,32 @@ renderToolbar state =
         ]
     ]
 
+renderFooter :: forall w i. HH.HTML w i
+renderFooter =
+  HH.div
+    [ HP.class_ (HH.ClassName "repo-links") ]
+    [ HH.a
+        [ HP.href
+            "https://github.com/paolino/gha-live"
+        , HP.target "_blank"
+        ]
+        [ HH.text "GitHub" ]
+    , HH.text " · "
+    , HH.a
+        [ HP.href
+            "https://github.com/paolino/gha-live/issues"
+        , HP.target "_blank"
+        ]
+        [ HH.text "Issues" ]
+    , HH.text " · "
+    , HH.img
+        [ HP.src
+            "https://img.shields.io/github/stars/paolino/gha-live?style=flat&color=333"
+        , HP.alt "GitHub stars"
+        , HP.class_ (HH.ClassName "badge")
+        ]
+    ]
+
 renderForm
   :: forall w. State -> HH.HTML w Action
 renderForm state =
@@ -573,29 +600,7 @@ renderForm state =
                   ]
               ]
           ]
-      , HH.div
-          [ HP.class_ (HH.ClassName "repo-links") ]
-          [ HH.a
-              [ HP.href
-                  "https://github.com/paolino/gha-live"
-              , HP.target "_blank"
-              ]
-              [ HH.text "GitHub" ]
-          , HH.text " · "
-          , HH.a
-              [ HP.href
-                  "https://github.com/paolino/gha-live/issues"
-              , HP.target "_blank"
-              ]
-              [ HH.text "Issues" ]
-          , HH.text " · "
-          , HH.img
-              [ HP.src
-                  "https://img.shields.io/github/stars/paolino/gha-live?style=flat&color=333"
-              , HP.alt "GitHub stars"
-              , HP.class_ (HH.ClassName "badge")
-              ]
-          ]
+      , renderFooter
       ]
         <> renderTargets state.targets
     )
