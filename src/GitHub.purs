@@ -1,11 +1,13 @@
 -- | GitHub REST API client — fetch workflow runs, jobs, and statuses.
 module GitHub
   ( Config
+  , OpenPR
   , Ref(..)
   , RateLimit
   , WorkflowRun
   , Job
   , fetchPipeline
+  , fetchOpenPRs
   ) where
 
 import Prelude
@@ -98,6 +100,21 @@ instance DecodeJson WJob where
         , htmlUrl: htmlUrl_
         , runId: runId_
         }
+
+type OpenPR =
+  { number :: Int
+  , title :: String
+  }
+
+newtype WPR = WPR OpenPR
+
+instance DecodeJson WPR where
+  decodeJson json = case toObject json of
+    Nothing -> Left (TypeMismatch "Object")
+    Just obj -> do
+      number_ <- obj .: "number"
+      title_ <- obj .: "title"
+      pure $ WPR { number: number_, title: title_ }
 
 type RateLimit =
   { remaining :: Int
@@ -253,6 +270,27 @@ fetchPipeline cfg = do
 
 lastElem :: forall a. Array a -> Maybe a
 lastElem arr = index arr (length arr - 1)
+
+fetchOpenPRs
+  :: Config
+  -> Aff
+       ( Either String
+           { prs :: Array OpenPR
+           , rateLimit :: Maybe RateLimit
+           }
+       )
+fetchOpenPRs cfg = do
+  result <- ghFetch cfg "/pulls?state=open&per_page=100"
+  pure $ result >>= \r -> do
+    prs :: Array WPR <- decodeJson r.json
+      # lmap show
+    pure
+      { prs: map (\(WPR p) -> p) prs
+      , rateLimit: r.rateLimit
+      }
+  where
+  lmap f (Left e) = Left (f e)
+  lmap _ (Right a) = Right a
 
 showId :: Number -> String
 showId = NF.toString

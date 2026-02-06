@@ -6,7 +6,7 @@ import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Decode.Class (decodeJson)
 import Data.Argonaut.Encode.Class (encodeJson)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Array (filter, index, length, nub, null, snoc)
+import Data.Array (filter, foldl, index, length, nub, null, snoc)
 import Data.Either (Either(..), hush)
 import Data.Int (ceil, fromString, toNumber) as Int
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -16,7 +16,13 @@ import Effect (Effect)
 import Effect.Aff (Aff, Milliseconds(..), delay)
 import Effect.Aff as Aff
 import Effect.Class (liftEffect)
-import GitHub (Config, RateLimit, Ref(..), fetchPipeline)
+import GitHub
+  ( Config
+  , RateLimit
+  , Ref(..)
+  , fetchOpenPRs
+  , fetchPipeline
+  )
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
@@ -527,6 +533,7 @@ doFetch
   -> H.HalogenM State Action () o Aff Unit
 doFetch cfg = do
   result <- H.liftAff (fetchPipeline cfg)
+  prsResult <- H.liftAff (fetchOpenPRs cfg)
   let
     refCalls = case cfg.ref of
       SHA _ -> 0
@@ -537,8 +544,12 @@ doFetch cfg = do
         { error = Just err, loading = false }
     Right { runs, jobs, rateLimit } ->
       let
-        calls = refCalls + 1 + length runs
-        optInterval = case rateLimit of
+        prCalls = 1
+        calls = refCalls + 1 + length runs + prCalls
+        rl' = case prsResult of
+          Right { rateLimit: Just r } -> Just r
+          _ -> rateLimit
+        optInterval = case rl' of
           Nothing -> Nothing
           Just rl ->
             let
@@ -548,10 +559,28 @@ doFetch cfg = do
                 )
             in
               Just (max 5 secs)
+        prTargets = case prsResult of
+          Left _ -> []
+          Right { prs } -> map
+            ( \pr ->
+                { url: "https://github.com/"
+                    <> cfg.owner
+                    <> "/"
+                    <> cfg.repo
+                    <> "/pull/"
+                    <> show pr.number
+                , label: cfg.owner <> "/" <> cfg.repo
+                    <> " #"
+                    <> show pr.number
+                }
+            )
+            prs
       in
         do
           st <- H.get
           let
+            merged = foldl (flip addTarget) st.targets
+              prTargets
             newInterval = fromMaybe st.interval
               optInterval
           H.modify_ _
@@ -559,10 +588,12 @@ doFetch cfg = do
             , error = Nothing
             , loading = false
             , apiCalls = calls
-            , rateLimit = rateLimit
+            , rateLimit = rl'
             , interval = newInterval
             , secondsLeft = newInterval
+            , targets = merged
             }
+          liftEffect $ saveTargets merged
 
 ticker :: Number -> HS.Emitter Action
 ticker ms = HS.makeEmitter \emit -> do
