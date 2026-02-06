@@ -1,6 +1,7 @@
 -- | Pipeline model — build the DAG of workflows and jobs from API data.
 module Pipeline
   ( Status(..)
+  , StepView
   , JobView
   , RunView
   , buildPipeline
@@ -10,7 +11,7 @@ import Prelude
 
 import Data.Array (filter)
 import Data.Maybe (Maybe(..))
-import GitHub (WorkflowRun, Job)
+import GitHub (Step, WorkflowRun, Job)
 
 data Status
   = Pending
@@ -21,11 +22,19 @@ data Status
   | Cancelled
   | Skipped
 
+type StepView =
+  { name :: String
+  , status :: Status
+  }
+
 type JobView =
   { id :: Number
   , name :: String
   , status :: Status
   , htmlUrl :: String
+  , startedAt :: Maybe String
+  , completedAt :: Maybe String
+  , steps :: Array StepView
   }
 
 type RunView =
@@ -70,4 +79,13 @@ buildPipeline runs jobs =
     , name: job.name
     , status: toStatus job.status job.conclusion
     , htmlUrl: job.htmlUrl
+    , startedAt: job.startedAt
+    , completedAt: job.completedAt
+    , steps: map toStepView job.steps
+    }
+
+  toStepView :: Step -> StepView
+  toStepView step =
+    { name: step.name
+    , status: toStatus step.status step.conclusion
     }

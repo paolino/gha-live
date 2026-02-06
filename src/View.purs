@@ -6,9 +6,10 @@ module View
 import Prelude
 
 import Data.Array as Array
-import Data.Array (foldl, length, mapWithIndex)
+import Data.Array (foldl, intercalate, length, mapWithIndex)
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..))
+import Data.String as DS
 import Data.String.CodeUnits (length) as S
 import Halogen.HTML as HH
 import Halogen.HTML.Core (ClassName(..), ElemName(..))
@@ -18,7 +19,7 @@ import Halogen.Svg.Attributes.Color (Color(..))
 import Halogen.Svg.Attributes.FontSize (FontSize(..))
 import Halogen.Svg.Attributes.TextAnchor (TextAnchor(..))
 import Halogen.Svg.Elements as SE
-import Pipeline (JobView, RunView, Status(..))
+import Pipeline (JobView, RunView, Status(..), StepView)
 
 statusColor :: Status -> Color
 statusColor = case _ of
@@ -170,7 +171,8 @@ renderJob xOff colW rowIdx job =
       _ -> [ ClassName "job-node" ]
   in
     svgA job.htmlUrl classes
-      [ SE.rect
+      [ SE.title [] [ HH.text (jobTooltip job) ]
+      , SE.rect
           [ SA.x xBox
           , SA.y yBox
           , SA.width boxW
@@ -189,6 +191,48 @@ renderJob xOff colW rowIdx job =
           ]
           [ HH.text job.name ]
       ]
+
+statusIcon :: Status -> String
+statusIcon = case _ of
+  Success -> "\x2713"
+  Failure -> "\x2717"
+  Running -> "\x25B6"
+  Pending -> "\x25CB"
+  Queued -> "\x25CB"
+  Cancelled -> "\x2212"
+  Skipped -> "\x2212"
+
+stepLine :: StepView -> String
+stepLine s = statusIcon s.status <> " " <> s.name
+
+formatTime :: String -> String
+formatTime ts =
+  case DS.indexOf (DS.Pattern "T") ts of
+    Nothing -> ts
+    Just i ->
+      let
+        afterT = DS.drop (i + 1) ts
+      in
+        case DS.indexOf (DS.Pattern "Z") afterT of
+          Just j -> DS.take j afterT
+          Nothing -> afterT
+
+jobTooltip :: JobView -> String
+jobTooltip job =
+  let
+    duration = case job.startedAt, job.completedAt of
+      Just s, Just e ->
+        formatTime s <> " → " <> formatTime e
+      Just s, Nothing -> "started " <> formatTime s
+      _, _ -> ""
+    steps = map stepLine job.steps
+    lines = [ job.name ]
+      <> (if duration == "" then [] else [ duration ])
+      <> ( if Array.null steps then []
+           else [ "---" ] <> steps
+         )
+  in
+    intercalate "\n" lines
 
 svgA
   :: forall w i

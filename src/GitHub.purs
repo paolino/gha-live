@@ -4,6 +4,7 @@ module GitHub
   , OpenPR
   , Ref(..)
   , RateLimit
+  , Step
   , WorkflowRun
   , Job
   , fetchPipeline
@@ -50,6 +51,12 @@ type WorkflowRun =
   , headSha :: String
   }
 
+type Step =
+  { name :: String
+  , status :: String
+  , conclusion :: Maybe String
+  }
+
 type Job =
   { id :: Number
   , name :: String
@@ -57,6 +64,9 @@ type Job =
   , conclusion :: Maybe String
   , htmlUrl :: String
   , runId :: Number
+  , startedAt :: Maybe String
+  , completedAt :: Maybe String
+  , steps :: Array Step
   }
 
 newtype WRun = WRun WorkflowRun
@@ -80,6 +90,21 @@ instance DecodeJson WRun where
         , headSha: headSha_
         }
 
+newtype WStep = WStep Step
+
+instance DecodeJson WStep where
+  decodeJson json = case toObject json of
+    Nothing -> Left (TypeMismatch "Object")
+    Just obj -> do
+      name_ <- obj .: "name"
+      status_ <- obj .: "status"
+      conclusion_ <- obj .:? "conclusion"
+      pure $ WStep
+        { name: name_
+        , status: status_
+        , conclusion: conclusion_
+        }
+
 newtype WJob = WJob Job
 
 instance DecodeJson WJob where
@@ -92,6 +117,12 @@ instance DecodeJson WJob where
       conclusion_ <- obj .:? "conclusion"
       htmlUrl_ <- obj .: "html_url"
       runId_ <- obj .: "run_id"
+      startedAt_ <- obj .:? "started_at"
+      completedAt_ <- obj .:? "completed_at"
+      steps_ <- obj .:? "steps"
+      let
+        steps = fromMaybe []
+          (map (map (\(WStep s) -> s)) steps_)
       pure $ WJob
         { id: id_
         , name: name_
@@ -99,6 +130,9 @@ instance DecodeJson WJob where
         , conclusion: conclusion_
         , htmlUrl: htmlUrl_
         , runId: runId_
+        , startedAt: startedAt_
+        , completedAt: completedAt_
+        , steps: steps
         }
 
 type OpenPR =
