@@ -924,19 +924,17 @@ doFetch cfg = do
       H.modify_ _
         { error = Just err, loading = false }
     Right runs -> do
-      -- Show runs immediately with empty jobs
       st <- H.get
       let merged = foldl (flip addTarget) st.targets prTargets
       H.modify_ _
-        { pipeline = buildPipeline runs []
-        , error = Nothing
+        { error = Nothing
         , loading = true
         , targets = merged
         , headingRepo = cfg.owner <> "/" <> cfg.repo
         , headingTitle = title
         }
       liftEffect $ saveTargets merged
-      -- Fetch jobs incrementally per run
+      -- Fetch jobs incrementally, updating each run in place
       allJobs <- fetchJobsIncremental cfg runs
       st' <- H.get
       let
