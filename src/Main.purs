@@ -141,6 +141,73 @@ render state = case state.config of
           )
       ]
 
+type TargetParts =
+  { owner :: String
+  , repo :: String
+  , ref :: String
+  , target :: Target
+  }
+
+parseTargetLabel :: Target -> TargetParts
+parseTargetLabel target =
+  case indexOf (Pattern "/") target.label of
+    Nothing ->
+      { owner: target.label
+      , repo: ""
+      , ref: ""
+      , target
+      }
+    Just slashIdx ->
+      let
+        owner = take slashIdx target.label
+        rest = drop (slashIdx + 1) target.label
+      in
+        case indexOf (Pattern " ") rest of
+          Nothing ->
+            { owner, repo: rest, ref: "", target }
+          Just spaceIdx ->
+            { owner
+            , repo: take spaceIdx rest
+            , ref: drop spaceIdx rest
+            , target
+            }
+
+type RepoNode =
+  { repo :: String
+  , entries :: Array TargetParts
+  }
+
+type OwnerNode =
+  { owner :: String
+  , repos :: Array RepoNode
+  }
+
+buildTree :: Array Target -> Array OwnerNode
+buildTree targets =
+  let
+    parts = map parseTargetLabel targets
+    owners = nub (map _.owner parts)
+  in
+    map
+      ( \o ->
+          let
+            ownerParts = filter (_.owner >>> eq o) parts
+            repos = nub (map _.repo ownerParts)
+          in
+            { owner: o
+            , repos: map
+                ( \r ->
+                    { repo: r
+                    , entries: filter
+                        (_.repo >>> eq r)
+                        ownerParts
+                    }
+                )
+                repos
+            }
+      )
+      owners
+
 renderSidebar
   :: forall w. State -> HH.HTML w Action
 renderSidebar state =
@@ -150,17 +217,39 @@ renderSidebar state =
           [ HP.class_ (HH.ClassName "sidebar-title") ]
           [ HH.text "Targets" ]
       ]
-        <> map renderSidebarTarget state.targets
+        <> bind (buildTree state.targets)
+          renderOwnerNode
     )
 
-renderSidebarTarget
-  :: forall w. Target -> HH.HTML w Action
-renderSidebarTarget target =
+renderOwnerNode
+  :: forall w. OwnerNode -> Array (HH.HTML w Action)
+renderOwnerNode node =
+  [ HH.div
+      [ HP.class_ (HH.ClassName "tree-owner") ]
+      [ HH.text node.owner ]
+  ]
+    <> bind node.repos renderRepoNode
+
+renderRepoNode
+  :: forall w. RepoNode -> Array (HH.HTML w Action)
+renderRepoNode node =
+  [ HH.div
+      [ HP.class_ (HH.ClassName "tree-repo") ]
+      [ HH.text node.repo ]
+  ]
+    <> map renderRefItem node.entries
+
+renderRefItem
+  :: forall w. TargetParts -> HH.HTML w Action
+renderRefItem parts =
   HH.div
-    [ HE.onClick \_ -> SelectTarget target
-    , HP.class_ (HH.ClassName "sidebar-item")
+    [ HE.onClick \_ -> SelectTarget parts.target
+    , HP.class_ (HH.ClassName "tree-ref")
     ]
-    [ HH.text target.label ]
+    [ HH.text
+        if parts.ref == "" then "(default)"
+        else parts.ref
+    ]
 
 renderToolbar
   :: forall w. State -> HH.HTML w Action
@@ -271,22 +360,44 @@ renderTargets targets
       [ HH.div
           [ HP.class_ (HH.ClassName "targets") ]
           ( [ HH.h3_ [ HH.text "Recent" ] ]
-              <> map renderTarget targets
+              <> bind (buildTree targets)
+                renderFormOwner
           )
       ]
 
-renderTarget
-  :: forall w. Target -> HH.HTML w Action
-renderTarget target =
+renderFormOwner
+  :: forall w. OwnerNode -> Array (HH.HTML w Action)
+renderFormOwner node =
+  [ HH.div
+      [ HP.class_ (HH.ClassName "tree-owner form-tree-owner") ]
+      [ HH.text node.owner ]
+  ]
+    <> bind node.repos renderFormRepo
+
+renderFormRepo
+  :: forall w. RepoNode -> Array (HH.HTML w Action)
+renderFormRepo node =
+  [ HH.div
+      [ HP.class_ (HH.ClassName "tree-repo form-tree-repo") ]
+      [ HH.text node.repo ]
+  ]
+    <> map renderFormRef node.entries
+
+renderFormRef
+  :: forall w. TargetParts -> HH.HTML w Action
+renderFormRef parts =
   HH.div
     [ HP.class_ (HH.ClassName "target") ]
     [ HH.span
-        [ HE.onClick \_ -> SelectTarget target
+        [ HE.onClick \_ -> SelectTarget parts.target
         , HP.class_ (HH.ClassName "target-label")
         ]
-        [ HH.text target.label ]
+        [ HH.text
+            if parts.ref == "" then "(default)"
+            else parts.ref
+        ]
     , HH.span
-        [ HE.onClick \_ -> RemoveTarget target
+        [ HE.onClick \_ -> RemoveTarget parts.target
         , HP.class_ (HH.ClassName "target-remove")
         ]
         [ HH.text "x" ]
