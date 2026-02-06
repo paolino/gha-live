@@ -125,6 +125,7 @@ renderRun runs colIdx run =
   let
     xOff = colOffset runs colIdx
     w = colWidth run
+    sepY = padding + labelH + 6.0
   in
     SE.g []
       ( [ SE.text
@@ -136,6 +137,14 @@ renderRun runs colIdx run =
             , SA.class_ (ClassName "run-label")
             ]
             [ HH.text run.name ]
+        , SE.line
+            [ SA.x1 xOff
+            , SA.y1 sepY
+            , SA.x2 (xOff + w)
+            , SA.y2 sepY
+            , SA.stroke (Named "#333")
+            , SA.strokeWidth 1.0
+            ]
         ]
           <> mapWithIndex
             (renderJob xOff w)
