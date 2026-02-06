@@ -2,6 +2,7 @@
 module GitHub
   ( Config
   , Ref(..)
+  , RateLimit
   , WorkflowRun
   , Job
   , fetchPipeline
@@ -14,13 +15,15 @@ import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)
 import Data.Argonaut.Decode.Combinators ((.:), (.:?))
 import Data.Argonaut.Decode.Error (JsonDecodeError(..))
 import Data.Argonaut.Parser (jsonParser)
-import Data.Array (concatMap)
+import Data.Array (concatMap, index, length)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
+import Data.Int (fromString) as Int
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Traversable (traverse)
 import Effect.Aff (Aff, try)
 import Effect.Exception (message)
 import Fetch (fetch)
+import Fetch.Internal.Headers as Headers
 import Data.Number.Format as NF
 import Foreign.Object as FO
 
@@ -96,10 +99,20 @@ instance DecodeJson WJob where
         , runId: runId_
         }
 
+type RateLimit =
+  { remaining :: Int
+  , limit :: Int
+  }
+
+type GHResponse =
+  { json :: Json
+  , rateLimit :: Maybe RateLimit
+  }
+
 ghFetch
   :: Config
   -> String
-  -> Aff (Either String Json)
+  -> Aff (Either String GHResponse)
 ghFetch cfg path = do
   let
     url =
@@ -115,12 +128,26 @@ ghFetch cfg path = do
           , "Authorization": "Bearer " <> cfg.token
           }
       }
-    resp.text
+    body <- resp.text
+    pure { body, headers: resp.headers }
   case result of
     Left err -> pure $ Left (message err)
-    Right body -> case jsonParser body of
+    Right r -> case jsonParser r.body of
       Left e -> pure $ Left ("JSON parse error: " <> e)
-      Right json -> pure $ Right json
+      Right json ->
+        let
+          rl = do
+            rem <-
+              Headers.lookup "x-ratelimit-remaining"
+                r.headers
+                >>= Int.fromString
+            lim <-
+              Headers.lookup "x-ratelimit-limit"
+                r.headers
+                >>= Int.fromString
+            Just { remaining: rem, limit: lim }
+        in
+          pure $ Right { json, rateLimit: rl }
 
 decodeField
   :: forall a
@@ -137,7 +164,8 @@ decodeField field json = case toObject json of
       Right val -> pure val
 
 fetchRuns
-  :: Config -> Aff (Either String (Array WorkflowRun))
+  :: Config
+  -> Aff (Either String (Array WorkflowRun))
 fetchRuns cfg = do
   sha <- resolveRef cfg
   case sha of
@@ -147,30 +175,45 @@ fetchRuns cfg = do
         ( "/actions/runs?head_sha=" <> headSha
             <> "&per_page=100"
         )
-      pure $ result >>= \json -> do
-        runs :: Array WRun <- decodeField "workflow_runs" json
-        pure $ map (\(WRun r) -> r) runs
+      pure $ result >>= \r -> do
+        runs :: Array WRun <- decodeField
+          "workflow_runs"
+          r.json
+        pure $ map (\(WRun r') -> r') runs
 
 resolveRef :: Config -> Aff (Either String String)
 resolveRef cfg = case cfg.ref of
   SHA s -> pure (Right s)
   Branch b -> do
     result <- ghFetch cfg ("/commits/" <> b)
-    pure $ result >>= \json -> decodeField "sha" json
+    pure $ result >>= \r -> decodeField "sha" r.json
   PR n -> do
     result <- ghFetch cfg ("/pulls/" <> show n)
-    pure $ result >>= \json -> do
-      head :: { sha :: String } <- decodeField "head" json
+    pure $ result >>= \r -> do
+      head :: { sha :: String } <- decodeField "head"
+        r.json
       pure head.sha
 
 fetchJobs
-  :: Config -> Number -> Aff (Either String (Array Job))
+  :: Config
+  -> Number
+  -> Aff
+       ( Either String
+           { jobs :: Array Job
+           , rateLimit :: Maybe RateLimit
+           }
+       )
 fetchJobs cfg runId = do
   result <- ghFetch cfg
-    ("/actions/runs/" <> showId runId <> "/jobs?per_page=100")
-  pure $ result >>= \json -> do
-    jobs :: Array WJob <- decodeField "jobs" json
-    pure $ map (\(WJob j) -> j) jobs
+    ( "/actions/runs/" <> showId runId
+        <> "/jobs?per_page=100"
+    )
+  pure $ result >>= \r -> do
+    jobs :: Array WJob <- decodeField "jobs" r.json
+    pure
+      { jobs: map (\(WJob j) -> j) jobs
+      , rateLimit: r.rateLimit
+      }
 
 fetchPipeline
   :: Config
@@ -178,6 +221,7 @@ fetchPipeline
        ( Either String
            { runs :: Array WorkflowRun
            , jobs :: Array Job
+           , rateLimit :: Maybe RateLimit
            }
        )
 fetchPipeline cfg = do
@@ -192,10 +236,23 @@ fetchPipeline cfg = do
         allJobs = concatMap
           ( case _ of
               Left _ -> []
-              Right js -> js
+              Right r -> r.jobs
           )
           jobResults
-      pure $ Right { runs, jobs: allJobs }
+        lastRL = fromMaybe Nothing $ map _.rateLimit
+          $
+            concatMap
+              ( case _ of
+                  Left _ -> []
+                  Right r -> [ r ]
+              )
+              jobResults
+              # lastElem
+      pure $ Right
+        { runs, jobs: allJobs, rateLimit: lastRL }
+
+lastElem :: forall a. Array a -> Maybe a
+lastElem arr = index arr (length arr - 1)
 
 showId :: Number -> String
 showId = NF.toString
