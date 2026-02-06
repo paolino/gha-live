@@ -8,7 +8,7 @@ import Data.Argonaut.Encode.Class (encodeJson)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (filter, index, length, nub, null, snoc)
 import Data.Either (Either(..), hush)
-import Data.Int (fromString) as Int
+import Data.Int (ceil, fromString, toNumber) as Int
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), drop, indexOf, split, take)
 import Data.String.CodeUnits as SCU
@@ -427,14 +427,31 @@ doFetch cfg = do
     Right { runs, jobs, rateLimit } ->
       let
         calls = refCalls + 1 + length runs
+        optInterval = case rateLimit of
+          Nothing -> Nothing
+          Just rl ->
+            let
+              secs = Int.ceil
+                ( 7200.0 * Int.toNumber calls
+                    / Int.toNumber rl.limit
+                )
+            in
+              Just (max 5 secs)
       in
-        H.modify_ _
-          { pipeline = buildPipeline runs jobs
-          , error = Nothing
-          , loading = false
-          , apiCalls = calls
-          , rateLimit = rateLimit
-          }
+        do
+          st <- H.get
+          let
+            newInterval = fromMaybe st.interval
+              optInterval
+          H.modify_ _
+            { pipeline = buildPipeline runs jobs
+            , error = Nothing
+            , loading = false
+            , apiCalls = calls
+            , rateLimit = rateLimit
+            , interval = newInterval
+            , secondsLeft = newInterval
+            }
 
 ticker :: Number -> HS.Emitter Action
 ticker ms = HS.makeEmitter \emit -> do
