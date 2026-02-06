@@ -62,6 +62,7 @@ type State =
   , rateLimit :: Maybe RateLimit
   , tickSub :: Maybe H.SubscriptionId
   , showSidebarForm :: Boolean
+  , showTokenForm :: Boolean
   , heading :: String
   }
 
@@ -78,6 +79,7 @@ data Action
   | ToggleSidebarForm
   | ChangeInterval Int
   | RemoveRepo String String
+  | ToggleTokenForm
 
 storageKeyTargets :: String
 storageKeyTargets = "gha-live-targets"
@@ -109,6 +111,7 @@ rootComponent =
         , rateLimit: Nothing
         , tickSub: Nothing
         , showSidebarForm: false
+        , showTokenForm: false
         , heading: ""
         }
     , render
@@ -232,46 +235,77 @@ buildTree targets =
 renderInputs
   :: forall w. State -> Array (HH.HTML w Action)
 renderInputs state =
-  if state.showSidebarForm then
-    [ HH.div
-        [ HP.class_ (HH.ClassName "sidebar-form") ]
+  ( if state.showSidebarForm then
+      [ HH.div
+          [ HP.class_ (HH.ClassName "sidebar-form") ]
+          [ HH.div
+              [ HP.class_
+                  (HH.ClassName "sidebar-form-row")
+              ]
+              [ HH.input
+                  [ HP.type_ HP.InputText
+                  , HP.placeholder "GitHub URL"
+                  , HP.value state.formUrl
+                  , HE.onValueInput SetFormUrl
+                  , HP.class_
+                      ( HH.ClassName
+                          "input input-sm url-input"
+                      )
+                  ]
+              , HH.button
+                  [ HE.onClick \_ -> Submit
+                  , HP.class_ (HH.ClassName "btn btn-sm")
+                  ]
+                  [ HH.text "Watch" ]
+              , HH.button
+                  [ HE.onClick \_ -> ToggleSidebarForm
+                  , HP.class_ (HH.ClassName "btn-small")
+                  ]
+                  [ HH.text "x" ]
+              ]
+          ]
+      ]
+    else
+      [ HH.button
+          [ HE.onClick \_ -> ToggleSidebarForm
+          , HP.class_ (HH.ClassName "btn-add")
+          ]
+          [ HH.text "+" ]
+      ]
+  )
+    <>
+      if state.showTokenForm then
         [ HH.div
-            [ HP.class_ (HH.ClassName "sidebar-form-row") ]
-            [ HH.input
-                [ HP.type_ HP.InputText
-                , HP.placeholder "GitHub URL"
-                , HP.value state.formUrl
-                , HE.onValueInput SetFormUrl
-                , HP.class_
-                    (HH.ClassName "input input-sm url-input")
+            [ HP.class_ (HH.ClassName "sidebar-form") ]
+            [ HH.div
+                [ HP.class_
+                    (HH.ClassName "sidebar-form-row")
                 ]
-            , HH.button
-                [ HE.onClick \_ -> Submit
-                , HP.class_ (HH.ClassName "btn btn-sm")
+                [ HH.input
+                    [ HP.type_ HP.InputPassword
+                    , HP.placeholder "Token"
+                    , HP.value state.formToken
+                    , HE.onValueInput SetFormToken
+                    , HP.class_
+                        ( HH.ClassName
+                            "input input-sm url-input"
+                        )
+                    ]
+                , HH.button
+                    [ HE.onClick \_ -> ToggleTokenForm
+                    , HP.class_ (HH.ClassName "btn-small")
+                    ]
+                    [ HH.text "x" ]
                 ]
-                [ HH.text "Watch" ]
-            , HH.button
-                [ HE.onClick \_ -> ToggleSidebarForm
-                , HP.class_ (HH.ClassName "btn-small")
-                ]
-                [ HH.text "x" ]
-            ]
-        , HH.input
-            [ HP.type_ HP.InputPassword
-            , HP.placeholder "Token"
-            , HP.value state.formToken
-            , HE.onValueInput SetFormToken
-            , HP.class_ (HH.ClassName "input input-sm")
             ]
         ]
-    ]
-  else
-    [ HH.button
-        [ HE.onClick \_ -> ToggleSidebarForm
-        , HP.class_ (HH.ClassName "btn-add")
+      else
+        [ HH.button
+            [ HE.onClick \_ -> ToggleTokenForm
+            , HP.class_ (HH.ClassName "btn-add btn-add-token")
+            ]
+            [ HH.text "\x1F511" ]
         ]
-        [ HH.text "+" ]
-    ]
 
 renderSidebar
   :: forall w. State -> HH.HTML w Action
@@ -603,6 +637,9 @@ handleAction = case _ of
   ToggleSidebarForm ->
     H.modify_ \st ->
       st { showSidebarForm = not st.showSidebarForm }
+  ToggleTokenForm ->
+    H.modify_ \st ->
+      st { showTokenForm = not st.showTokenForm }
   Refresh -> do
     st <- H.get
     case st.config of
