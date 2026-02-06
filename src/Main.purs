@@ -66,6 +66,7 @@ type State =
   , headingRepo :: String
   , headingTitle :: String
   , safeInterval :: Int
+  , userSetInterval :: Boolean
   }
 
 data Action
@@ -118,6 +119,7 @@ rootComponent =
         , headingRepo: ""
         , headingTitle: ""
         , safeInterval: 5
+        , userSetInterval: false
         }
     , render
     , eval: H.mkEval H.defaultEval
@@ -823,6 +825,7 @@ handleAction = case _ of
     H.modify_ _
       { interval = newInterval
       , secondsLeft = min st.secondsLeft newInterval
+      , userSetInterval = true
       }
   Tick -> do
     st <- H.get
@@ -924,7 +927,9 @@ doFetch cfg = do
             merged = foldl (flip addTarget) st.targets
               prTargets
             newSafe = fromMaybe st.safeInterval optInterval
-            newInterval = fromMaybe st.interval optInterval
+            newInterval =
+              if st.userSetInterval then st.interval
+              else fromMaybe st.interval optInterval
           H.modify_ _
             { pipeline = buildPipeline runs jobs
             , error = Nothing
