@@ -2,6 +2,8 @@
 
 Live pipeline visualization for GitHub Actions — all workflows and jobs for a commit or PR on a single page, rendered as a color-coded DAG with auto-refresh and clickable links to logs.
 
+**Runs entirely in your browser.** There is no server — the app is a static page hosted on GitHub Pages. Your GitHub token is stored in localStorage and sent only to the GitHub API. Nothing is logged or transmitted to any third party.
+
 ## Stack
 
 PureScript · Halogen · SVG · GitHub REST API · esbuild
