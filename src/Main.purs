@@ -291,7 +291,7 @@ renderInputs state =
           [ HE.onClick \_ -> ToggleSidebarForm
           , HP.class_ (HH.ClassName "btn-add")
           ]
-          [ HH.text "+" ]
+          [ HH.text "\x1F517" ]
       ]
   )
     <>
@@ -350,7 +350,7 @@ renderSidebar state =
               [ HE.onClick \_ -> ResetAll
               , HP.class_ (HH.ClassName "btn-reset")
               ]
-              [ HH.text "Reset" ]
+              [ HH.text "\x1F5D1" ]
           ]
     )
 
