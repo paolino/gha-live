@@ -16,7 +16,7 @@ import Effect (Effect)
 import Effect.Aff (Aff, Milliseconds(..), delay)
 import Effect.Aff as Aff
 import Effect.Class (liftEffect)
-import GitHub (Config, Ref(..), fetchPipeline)
+import GitHub (Config, RateLimit, Ref(..), fetchPipeline)
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
@@ -52,6 +52,7 @@ type State =
   , interval :: Int
   , secondsLeft :: Int
   , apiCalls :: Int
+  , rateLimit :: Maybe RateLimit
   }
 
 data Action
@@ -93,6 +94,7 @@ rootComponent =
         , interval: 5
         , secondsLeft: 5
         , apiCalls: 0
+        , rateLimit: Nothing
         }
     , render
     , eval: H.mkEval H.defaultEval
@@ -199,8 +201,16 @@ renderToolbar state =
             [ HH.text "+" ]
         , HH.text
             ( " · " <> show state.apiCalls
-                <> " API calls"
+                <> " calls"
             )
+        , case state.rateLimit of
+            Nothing -> HH.text ""
+            Just rl ->
+              HH.text
+                ( " · " <> show rl.remaining
+                    <> "/"
+                    <> show rl.limit
+                )
         ]
     ]
 
@@ -414,7 +424,7 @@ doFetch cfg = do
     Left err ->
       H.modify_ _
         { error = Just err, loading = false }
-    Right { runs, jobs } ->
+    Right { runs, jobs, rateLimit } ->
       let
         calls = refCalls + 1 + length runs
       in
@@ -423,6 +433,7 @@ doFetch cfg = do
           , error = Nothing
           , loading = false
           , apiCalls = calls
+          , rateLimit = rateLimit
           }
 
 ticker :: Number -> HS.Emitter Action
