@@ -41,6 +41,7 @@
               pkgs.esbuild
               pkgs.nodejs_20
               pkgs.just
+              pkgs.python3
             ];
           };
         }
