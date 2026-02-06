@@ -933,7 +933,7 @@ doFetch cfg = do
         , headingTitle = title
         }
       liftEffect $ saveTargets merged
-      -- Fetch jobs incrementally, updating each run in place
+      -- Fetch jobs incrementally, replacing per run
       allJobs <- fetchJobsIncremental cfg runs
       st' <- H.get
       let
@@ -978,14 +978,12 @@ fetchJobsIncremental cfg runs = go runs []
       case result of
         Left _ -> go rest acc
         Right { jobs, rateLimit } -> do
-          let newAcc = acc <> jobs
           H.modify_ \st -> st
-            { pipeline = buildPipeline runs newAcc
-            , rateLimit = case rateLimit of
+            { rateLimit = case rateLimit of
                 Just rl -> Just rl
                 Nothing -> st.rateLimit
             }
-          go rest newAcc
+          go rest (acc <> jobs)
 
 ticker :: Number -> HS.Emitter Action
 ticker ms = HS.makeEmitter \emit -> do
