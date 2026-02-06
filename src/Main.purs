@@ -225,12 +225,26 @@ renderInputs state =
   if state.showSidebarForm then
     [ HH.div
         [ HP.class_ (HH.ClassName "sidebar-form") ]
-        [ HH.input
-            [ HP.type_ HP.InputText
-            , HP.placeholder "GitHub URL"
-            , HP.value state.formUrl
-            , HE.onValueInput SetFormUrl
-            , HP.class_ (HH.ClassName "input input-sm")
+        [ HH.div
+            [ HP.class_ (HH.ClassName "sidebar-form-row") ]
+            [ HH.input
+                [ HP.type_ HP.InputText
+                , HP.placeholder "GitHub URL"
+                , HP.value state.formUrl
+                , HE.onValueInput SetFormUrl
+                , HP.class_
+                    (HH.ClassName "input input-sm url-input")
+                ]
+            , HH.button
+                [ HE.onClick \_ -> Submit
+                , HP.class_ (HH.ClassName "btn btn-sm")
+                ]
+                [ HH.text "Watch" ]
+            , HH.button
+                [ HE.onClick \_ -> ToggleSidebarForm
+                , HP.class_ (HH.ClassName "btn-small")
+                ]
+                [ HH.text "x" ]
             ]
         , HH.input
             [ HP.type_ HP.InputPassword
@@ -238,20 +252,6 @@ renderInputs state =
             , HP.value state.formToken
             , HE.onValueInput SetFormToken
             , HP.class_ (HH.ClassName "input input-sm")
-            ]
-        , HH.div
-            [ HP.class_ (HH.ClassName "sidebar-form-row") ]
-            [ HH.button
-                [ HE.onClick \_ -> Submit
-                , HP.class_ (HH.ClassName "btn btn-sm")
-                ]
-                [ HH.text "Watch" ]
-            , HH.button
-                [ HE.onClick \_ -> ToggleSidebarForm
-                , HP.class_
-                    (HH.ClassName "btn-small")
-                ]
-                [ HH.text "Cancel" ]
             ]
         ]
     ]
