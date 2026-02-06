@@ -629,11 +629,16 @@ renderForm state =
                   ]
               , HH.li_
                   [ HH.text
-                      "Open PRs are discovered automatically"
+                      "Open PRs are discovered automatically — hide any with "
+                  , HH.code_ [ HH.text "x" ]
                   ]
               , HH.li_
                   [ HH.text
                       "Targets are saved in your browser"
+                  ]
+              , HH.li_
+                  [ HH.text
+                      "Export / import your settings, or reset everything"
                   ]
               , HH.li_
                   [ HH.text
