@@ -60,6 +60,7 @@ type State =
   , apiCalls :: Int
   , rateLimit :: Maybe RateLimit
   , tickSub :: Maybe H.SubscriptionId
+  , showSidebarForm :: Boolean
   }
 
 data Action
@@ -72,6 +73,7 @@ data Action
   | Refresh
   | SelectTarget Target
   | RemoveTarget Target
+  | ToggleSidebarForm
   | ChangeInterval Int
 
 storageKeyTargets :: String
@@ -103,6 +105,7 @@ rootComponent =
         , apiCalls: 0
         , rateLimit: Nothing
         , tickSub: Nothing
+        , showSidebarForm: false
         }
     , render
     , eval: H.mkEval H.defaultEval
@@ -219,29 +222,46 @@ buildTree targets =
 renderInputs
   :: forall w. State -> Array (HH.HTML w Action)
 renderInputs state =
-  [ HH.div
-      [ HP.class_ (HH.ClassName "sidebar-form") ]
-      [ HH.input
-          [ HP.type_ HP.InputText
-          , HP.placeholder "GitHub URL"
-          , HP.value state.formUrl
-          , HE.onValueInput SetFormUrl
-          , HP.class_ (HH.ClassName "input input-sm")
-          ]
-      , HH.input
-          [ HP.type_ HP.InputPassword
-          , HP.placeholder "Token"
-          , HP.value state.formToken
-          , HE.onValueInput SetFormToken
-          , HP.class_ (HH.ClassName "input input-sm")
-          ]
-      , HH.button
-          [ HE.onClick \_ -> Submit
-          , HP.class_ (HH.ClassName "btn btn-sm")
-          ]
-          [ HH.text "Watch" ]
-      ]
-  ]
+  if state.showSidebarForm then
+    [ HH.div
+        [ HP.class_ (HH.ClassName "sidebar-form") ]
+        [ HH.input
+            [ HP.type_ HP.InputText
+            , HP.placeholder "GitHub URL"
+            , HP.value state.formUrl
+            , HE.onValueInput SetFormUrl
+            , HP.class_ (HH.ClassName "input input-sm")
+            ]
+        , HH.input
+            [ HP.type_ HP.InputPassword
+            , HP.placeholder "Token"
+            , HP.value state.formToken
+            , HE.onValueInput SetFormToken
+            , HP.class_ (HH.ClassName "input input-sm")
+            ]
+        , HH.div
+            [ HP.class_ (HH.ClassName "sidebar-form-row") ]
+            [ HH.button
+                [ HE.onClick \_ -> Submit
+                , HP.class_ (HH.ClassName "btn btn-sm")
+                ]
+                [ HH.text "Watch" ]
+            , HH.button
+                [ HE.onClick \_ -> ToggleSidebarForm
+                , HP.class_
+                    (HH.ClassName "btn-small")
+                ]
+                [ HH.text "Cancel" ]
+            ]
+        ]
+    ]
+  else
+    [ HH.button
+        [ HE.onClick \_ -> ToggleSidebarForm
+        , HP.class_ (HH.ClassName "btn-add")
+        ]
+        [ HH.text "+" ]
+    ]
 
 renderSidebar
   :: forall w. State -> HH.HTML w Action
@@ -504,6 +524,9 @@ handleAction = case _ of
         st.targets
     H.modify_ _ { targets = newTargets }
     liftEffect $ saveTargets newTargets
+  ToggleSidebarForm ->
+    H.modify_ \st ->
+      st { showSidebarForm = not st.showSidebarForm }
   Refresh -> do
     st <- H.get
     case st.config of
