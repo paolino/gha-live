@@ -65,6 +65,7 @@ type State =
   , showTokenForm :: Boolean
   , headingRepo :: String
   , headingTitle :: String
+  , safeInterval :: Int
   }
 
 data Action
@@ -116,6 +117,7 @@ rootComponent =
         , showTokenForm: false
         , headingRepo: ""
         , headingTitle: ""
+        , safeInterval: 5
         }
     , render
     , eval: H.mkEval H.defaultEval
@@ -428,11 +430,20 @@ renderToolbar state =
             , HP.disabled (state.interval <= 5)
             ]
             [ HH.text "-" ]
-        , HH.text
-            ( show state.secondsLeft <> "s / "
-                <> show state.interval
-                <> "s"
-            )
+        , HH.span
+            [ HP.class_
+                ( HH.ClassName
+                    if state.interval >= state.safeInterval then
+                      "timer-safe"
+                    else "timer-unsafe"
+                )
+            ]
+            [ HH.text
+                ( show state.secondsLeft <> "s / "
+                    <> show state.interval
+                    <> "s"
+                )
+            ]
         , HH.button
             [ HE.onClick \_ -> ChangeInterval 5
             , HP.class_ (HH.ClassName "btn-small")
@@ -912,8 +923,8 @@ doFetch cfg = do
           let
             merged = foldl (flip addTarget) st.targets
               prTargets
-            newInterval = fromMaybe st.interval
-              optInterval
+            newSafe = fromMaybe st.safeInterval optInterval
+            newInterval = fromMaybe st.interval optInterval
           H.modify_ _
             { pipeline = buildPipeline runs jobs
             , error = Nothing
@@ -921,6 +932,7 @@ doFetch cfg = do
             , apiCalls = calls
             , rateLimit = rl'
             , interval = newInterval
+            , safeInterval = newSafe
             , targets = merged
             , headingRepo = cfg.owner <> "/" <> cfg.repo
             , headingTitle = title
