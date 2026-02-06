@@ -228,9 +228,10 @@ jobTooltip job =
     steps = map stepLine job.steps
     lines = [ job.name ]
       <> (if duration == "" then [] else [ duration ])
-      <> ( if Array.null steps then []
-           else [ "---" ] <> steps
-         )
+      <>
+        ( if Array.null steps then []
+          else [ "---" ] <> steps
+        )
   in
     intercalate "\n" lines
 

@@ -67,6 +67,7 @@ type State =
   , tickSub :: Maybe H.SubscriptionId
   , showSidebarForm :: Boolean
   , showTokenForm :: Boolean
+  , removedUrls :: Array String
   , headingRepo :: String
   , headingTitle :: String
   , safeInterval :: Int
@@ -102,6 +103,9 @@ storageKeyUrl = "gha-live-url"
 storageKeyConfig :: String
 storageKeyConfig = "gha-live-config"
 
+storageKeyRemoved :: String
+storageKeyRemoved = "gha-live-removed"
+
 rootComponent
   :: forall q i o. H.Component q i o Aff
 rootComponent =
@@ -121,6 +125,7 @@ rootComponent =
         , tickSub: Nothing
         , showSidebarForm: false
         , showTokenForm: false
+        , removedUrls: []
         , headingRepo: ""
         , headingTitle: ""
         , safeInterval: 5
@@ -185,7 +190,7 @@ render state = case state.config of
                           [ renderPipeline state.pipeline
                           ]
                   )
-              <> [ renderFooter ]
+                    <> [ renderFooter ]
           )
       ]
 
@@ -730,10 +735,12 @@ handleAction
 handleAction = case _ of
   Initialize -> do
     saved <- liftEffect loadSaved
+    removed <- liftEffect loadRemoved
     H.modify_ _
       { formUrl = saved.url
       , formToken = saved.token
       , targets = saved.targets
+      , removedUrls = removed
       }
     qs <- liftEffect do
       w <- window
@@ -786,11 +793,27 @@ handleAction = case _ of
       newTargets = filter
         (\t -> t.url /= target.url)
         st.targets
-    H.modify_ _ { targets = newTargets }
-    liftEffect $ saveTargets newTargets
+      removedUrls = snoc st.removedUrls target.url
+    H.modify_ _
+      { targets = newTargets
+      , removedUrls = removedUrls
+      }
+    liftEffect do
+      saveTargets newTargets
+      saveRemoved removedUrls
   RemoveRepo owner repo -> do
     st <- H.get
     let
+      removed = filter
+        ( \t ->
+            let
+              p = parseTargetLabel t
+            in
+              p.owner == owner && p.repo == repo
+        )
+        st.targets
+      removedUrls = st.removedUrls
+        <> map _.url removed
       newTargets = filter
         ( \t ->
             let
@@ -800,8 +823,13 @@ handleAction = case _ of
                 (p.owner == owner && p.repo == repo)
         )
         st.targets
-    H.modify_ _ { targets = newTargets }
-    liftEffect $ saveTargets newTargets
+    H.modify_ _
+      { targets = newTargets
+      , removedUrls = removedUrls
+      }
+    liftEffect do
+      saveTargets newTargets
+      saveRemoved removedUrls
   ToggleSidebarForm ->
     H.modify_ \st ->
       st { showSidebarForm = not st.showSidebarForm }
@@ -824,6 +852,7 @@ handleAction = case _ of
         Storage.removeItem storageKeyToken s
         Storage.removeItem storageKeyUrl s
         Storage.removeItem storageKeyConfig s
+        Storage.removeItem storageKeyRemoved s
       H.modify_ _
         { config = Nothing
         , pipeline = []
@@ -835,6 +864,7 @@ handleAction = case _ of
         , tickSub = Nothing
         , headingRepo = ""
         , headingTitle = ""
+        , removedUrls = []
         }
   ExportData -> do
     liftEffect do
@@ -848,14 +878,18 @@ handleAction = case _ of
         Storage.getItem storageKeyUrl s
       config <- fromMaybe "" <$>
         Storage.getItem storageKeyConfig s
+      removed <- fromMaybe "[]" <$>
+        Storage.getItem storageKeyRemoved s
       let
         json = stringify $ encodeJson
-          { targets, token, url, config }
+          { targets, token, url, config, removed }
       downloadJson "gha-live.json" json
   ImportData -> do
     content <- H.liftAff pickJsonFile
-    case hush (jsonParser content) >>= \json ->
-      hush (decodeJson json) of
+    case
+      hush (jsonParser content) >>= \json ->
+        hush (decodeJson json)
+      of
       Nothing -> pure unit
       Just
         ( obj
@@ -863,6 +897,7 @@ handleAction = case _ of
                , token :: String
                , url :: String
                , config :: String
+               , removed :: String
                }
         ) -> do
         liftEffect do
@@ -873,11 +908,17 @@ handleAction = case _ of
           Storage.setItem storageKeyUrl obj.url s
           when (obj.config /= "")
             $ Storage.setItem storageKeyConfig obj.config s
+          when (obj.removed /= "")
+            $ Storage.setItem storageKeyRemoved
+                obj.removed
+                s
         saved <- liftEffect loadSaved
+        removed <- liftEffect loadRemoved
         H.modify_ _
           { formUrl = saved.url
           , formToken = saved.token
           , targets = saved.targets
+          , removedUrls = removed
           }
         case saved.config of
           Just cfg -> startWatching cfg
@@ -991,7 +1032,12 @@ doFetch cfg = do
         { error = Just err, loading = false }
     Right runs -> do
       st <- H.get
-      let merged = foldl (flip addTarget) st.targets prTargets
+      let
+        filteredPrTargets = filter
+          (\t -> not (any (_ == t.url) st.removedUrls))
+          prTargets
+        merged = foldl (flip addTarget) st.targets
+          filteredPrTargets
       H.modify_ _
         { error = Nothing
         , loading = true
@@ -1190,6 +1236,29 @@ clearConfig = do
   w <- window
   s <- localStorage w
   Storage.removeItem storageKeyConfig s
+
+loadRemoved :: Effect (Array String)
+loadRemoved = do
+  w <- window
+  s <- localStorage w
+  raw <- Storage.getItem storageKeyRemoved s
+  pure $ case raw of
+    Nothing -> []
+    Just str ->
+      case
+        hush (jsonParser str)
+          >>= (decodeJson >>> hush)
+        of
+        Nothing -> []
+        Just arr -> arr
+
+saveRemoved :: Array String -> Effect Unit
+saveRemoved urls = do
+  w <- window
+  s <- localStorage w
+  Storage.setItem storageKeyRemoved
+    (stringify (encodeJson urls))
+    s
 
 saveField :: String -> String -> Effect Unit
 saveField key val = do
