@@ -34,7 +34,7 @@ import Pipeline (RunView, buildPipeline)
 import View (renderPipeline)
 import Web.HTML (window)
 import Web.HTML.Location (search)
-import Web.HTML.Window (localStorage, location)
+import Web.HTML.Window (confirm, localStorage, location)
 import Web.Storage.Storage as Storage
 
 main :: Effect Unit
@@ -306,6 +306,11 @@ renderInputs state =
                             "input input-sm url-input"
                         )
                     ]
+                , HH.button
+                    [ HE.onClick \_ -> ToggleTokenForm
+                    , HP.class_ (HH.ClassName "btn btn-sm")
+                    ]
+                    [ HH.text "OK" ]
                 , HH.button
                     [ HE.onClick \_ -> ToggleTokenForm
                     , HP.class_ (HH.ClassName "btn-small")
@@ -727,25 +732,33 @@ handleAction = case _ of
     H.modify_ \st ->
       st { showTokenForm = not st.showTokenForm }
   ResetAll -> do
-    liftEffect do
+    ok <- liftEffect do
       w <- window
-      s <- localStorage w
-      Storage.removeItem storageKeyTargets s
-      Storage.removeItem storageKeyToken s
-      Storage.removeItem storageKeyUrl s
-      Storage.removeItem storageKeyConfig s
-    H.modify_ _
-      { config = Nothing
-      , pipeline = []
-      , error = Nothing
-      , loading = false
-      , formUrl = ""
-      , formToken = ""
-      , targets = []
-      , tickSub = Nothing
-      , headingRepo = ""
-      , headingTitle = ""
-      }
+      confirm "Reset all saved data?" w
+    when ok do
+      st <- H.get
+      case st.tickSub of
+        Just sid -> H.unsubscribe sid
+        Nothing -> pure unit
+      liftEffect do
+        w <- window
+        s <- localStorage w
+        Storage.removeItem storageKeyTargets s
+        Storage.removeItem storageKeyToken s
+        Storage.removeItem storageKeyUrl s
+        Storage.removeItem storageKeyConfig s
+      H.modify_ _
+        { config = Nothing
+        , pipeline = []
+        , error = Nothing
+        , loading = false
+        , formUrl = ""
+        , formToken = ""
+        , targets = []
+        , tickSub = Nothing
+        , headingRepo = ""
+        , headingTitle = ""
+        }
   Refresh -> do
     st <- H.get
     case st.config of
