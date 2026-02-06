@@ -60,6 +60,7 @@ data Action
   | SetFormToken String
   | Submit
   | Back
+  | Refresh
   | SelectTarget Target
   | RemoveTarget Target
 
@@ -98,12 +99,12 @@ render state = case state.config of
   Just _ ->
     if state.loading && null state.pipeline then
       HH.div_
-        [ renderBackBtn
+        [ renderToolbar true
         , HH.text "Loading..."
         ]
     else
       HH.div_
-        ( [ renderBackBtn ]
+        ( [ renderToolbar state.loading ]
             <> case state.error of
               Just err ->
                 [ HH.div
@@ -124,14 +125,25 @@ render state = case state.config of
                 ]
         )
 
-renderBackBtn
-  :: forall w. HH.HTML w Action
-renderBackBtn =
-  HH.button
-    [ HE.onClick \_ -> Back
-    , HP.class_ (HH.ClassName "btn-back")
+renderToolbar
+  :: forall w. Boolean -> HH.HTML w Action
+renderToolbar loading =
+  HH.div
+    [ HP.class_ (HH.ClassName "toolbar") ]
+    [ HH.button
+        [ HE.onClick \_ -> Back
+        , HP.class_ (HH.ClassName "btn-back")
+        ]
+        [ HH.text "Back" ]
+    , HH.button
+        [ HE.onClick \_ -> Refresh
+        , HP.class_ (HH.ClassName "btn-back")
+        , HP.disabled loading
+        ]
+        [ HH.text
+            if loading then "Refreshing..." else "Refresh"
+        ]
     ]
-    [ HH.text "Back" ]
 
 renderForm
   :: forall w. State -> HH.HTML w Action
@@ -273,6 +285,13 @@ handleAction = case _ of
         st.targets
     H.modify_ _ { targets = newTargets }
     liftEffect $ saveTargets newTargets
+  Refresh -> do
+    st <- H.get
+    case st.config of
+      Nothing -> pure unit
+      Just cfg -> do
+        H.modify_ _ { loading = true }
+        doFetch cfg
   Back -> do
     H.modify_ _
       { config = Nothing
