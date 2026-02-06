@@ -75,6 +75,7 @@ data Action
   | RemoveTarget Target
   | ToggleSidebarForm
   | ChangeInterval Int
+  | RemoveRepo String String
 
 storageKeyTargets :: String
 storageKeyTargets = "gha-live-targets"
@@ -285,14 +286,23 @@ renderOwnerNode node =
       [ HP.class_ (HH.ClassName "tree-owner") ]
       [ HH.text node.owner ]
   ]
-    <> bind node.repos renderRepoNode
+    <> bind node.repos (renderRepoNode node.owner)
 
 renderRepoNode
-  :: forall w. RepoNode -> Array (HH.HTML w Action)
-renderRepoNode node =
+  :: forall w
+   . String
+  -> RepoNode
+  -> Array (HH.HTML w Action)
+renderRepoNode owner node =
   [ HH.div
       [ HP.class_ (HH.ClassName "tree-repo") ]
-      [ HH.text node.repo ]
+      [ HH.span_ [ HH.text node.repo ]
+      , HH.span
+          [ HE.onClick \_ -> RemoveRepo owner node.repo
+          , HP.class_ (HH.ClassName "tree-remove")
+          ]
+          [ HH.text "x" ]
+      ]
   ]
     <> map renderRefItem node.entries
 
@@ -429,14 +439,23 @@ renderFormOwner node =
       [ HP.class_ (HH.ClassName "tree-owner form-tree-owner") ]
       [ HH.text node.owner ]
   ]
-    <> bind node.repos renderFormRepo
+    <> bind node.repos (renderFormRepo node.owner)
 
 renderFormRepo
-  :: forall w. RepoNode -> Array (HH.HTML w Action)
-renderFormRepo node =
+  :: forall w
+   . String
+  -> RepoNode
+  -> Array (HH.HTML w Action)
+renderFormRepo owner node =
   [ HH.div
       [ HP.class_ (HH.ClassName "tree-repo form-tree-repo") ]
-      [ HH.text node.repo ]
+      [ HH.span_ [ HH.text node.repo ]
+      , HH.span
+          [ HE.onClick \_ -> RemoveRepo owner node.repo
+          , HP.class_ (HH.ClassName "tree-remove")
+          ]
+          [ HH.text "x" ]
+      ]
   ]
     <> map renderFormRef node.entries
 
@@ -521,6 +540,20 @@ handleAction = case _ of
     let
       newTargets = filter
         (\t -> t.url /= target.url)
+        st.targets
+    H.modify_ _ { targets = newTargets }
+    liftEffect $ saveTargets newTargets
+  RemoveRepo owner repo -> do
+    st <- H.get
+    let
+      newTargets = filter
+        ( \t ->
+            let
+              p = parseTargetLabel t
+            in
+              not
+                (p.owner == owner && p.repo == repo)
+        )
         st.targets
     H.modify_ _ { targets = newTargets }
     liftEffect $ saveTargets newTargets
