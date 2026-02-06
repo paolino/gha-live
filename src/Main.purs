@@ -442,7 +442,7 @@ renderRefItem parts =
                         (HH.ClassName "tree-ref-title")
                     ]
                     [ HH.text
-                        ( " " <> truncate 44
+                        ( " " <> truncate 36
                             parts.target.title
                         )
                     ]
