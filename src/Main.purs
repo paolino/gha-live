@@ -59,6 +59,7 @@ type State =
   , secondsLeft :: Int
   , apiCalls :: Int
   , rateLimit :: Maybe RateLimit
+  , tickSub :: Maybe H.SubscriptionId
   }
 
 data Action
@@ -101,6 +102,7 @@ rootComponent =
         , secondsLeft: 5
         , apiCalls: 0
         , rateLimit: Nothing
+        , tickSub: Nothing
         }
     , render
     , eval: H.mkEval H.defaultEval
@@ -484,11 +486,16 @@ handleAction = case _ of
           }
         doFetch cfg
   Back -> do
+    st <- H.get
+    case st.tickSub of
+      Just sid -> H.unsubscribe sid
+      Nothing -> pure unit
     H.modify_ _
       { config = Nothing
       , pipeline = []
       , error = Nothing
       , loading = false
+      , tickSub = Nothing
       }
     liftEffect clearConfig
   ChangeInterval delta -> do
@@ -516,6 +523,9 @@ startWatching
   -> H.HalogenM State Action () o Aff Unit
 startWatching cfg = do
   st <- H.get
+  case st.tickSub of
+    Just sid -> H.unsubscribe sid
+    Nothing -> pure unit
   H.modify_ _
     { config = Just cfg
     , loading = true
@@ -524,8 +534,8 @@ startWatching cfg = do
     }
   liftEffect $ saveConfig cfg
   doFetch cfg
-  _ <- H.subscribe $ ticker 1000.0
-  pure unit
+  sid <- H.subscribe $ ticker 1000.0
+  H.modify_ _ { tickSub = Just sid }
 
 doFetch
   :: forall o
@@ -590,7 +600,6 @@ doFetch cfg = do
             , apiCalls = calls
             , rateLimit = rl'
             , interval = newInterval
-            , secondsLeft = newInterval
             , targets = merged
             }
           liftEffect $ saveTargets merged
