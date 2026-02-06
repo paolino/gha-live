@@ -809,7 +809,14 @@ handleAction = case _ of
           do
             let
               newTargets = addTarget target st.targets
-              newRemoved = filter (_ /= st.formUrl)
+              repoPrefix = "https://github.com/"
+                <> owner
+                <> "/"
+                <> repo
+              matchesRepo u =
+                indexOf (Pattern repoPrefix) u == Just 0
+              newRemoved = filter
+                (not <<< matchesRepo)
                 st.removedUrls
             H.modify_ _
               { targets = newTargets
