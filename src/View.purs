@@ -133,7 +133,7 @@ renderRun runs colIdx run =
             [ SA.x (xOff + w / 2.0)
             , SA.y (padding + labelH)
             , SA.fill (Named "#e0e0e0")
-            , SA.fontSize (FontSizeLength (Px 12.0))
+            , SA.fontSize (FontSizeLength (Px 14.0))
             , SA.textAnchor AnchorMiddle
             , SA.class_ (ClassName "run-label")
             ]
