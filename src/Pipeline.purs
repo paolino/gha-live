@@ -9,7 +9,7 @@ module Pipeline
 
 import Prelude
 
-import Data.Array (filter)
+import Data.Array (filter, sortBy)
 import Data.Maybe (Maybe(..))
 import GitHub (Step, WorkflowRun, Job)
 
@@ -67,7 +67,8 @@ buildPipeline runs jobs =
     { id: run.id
     , name: run.name
     , status: toStatus run.status run.conclusion
-    , jobs: map toJobView (jobsForRun run.id)
+    , jobs: sortBy (\a b -> compare a.name b.name)
+        $ map toJobView (jobsForRun run.id)
     }
 
   jobsForRun :: Number -> Array Job
