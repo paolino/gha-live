@@ -29,7 +29,6 @@ import View (renderPipeline)
 import Web.HTML (window)
 import Web.HTML.Location (search)
 import Web.HTML.Window (localStorage, location)
-import Web.HTML.Window as Window
 import Web.Storage.Storage as Storage
 
 main :: Effect Unit
@@ -55,7 +54,6 @@ type State =
 data Action
   = Initialize
   | Tick
-  | OpenUrl String
   | SetFormUrl String
   | SetFormToken String
   | Submit
@@ -121,7 +119,7 @@ render state = case state.config of
                     ]
                 ]
               else
-                [ renderPipeline OpenUrl state.pipeline
+                [ renderPipeline state.pipeline
                 ]
         )
 
@@ -304,9 +302,6 @@ handleAction = case _ of
     case st.config of
       Nothing -> pure unit
       Just cfg -> doFetch cfg
-  OpenUrl url -> liftEffect do
-    w <- window
-    void $ Window.open url "_blank" "" w
 
 startWatching
   :: forall o
