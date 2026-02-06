@@ -71,6 +71,9 @@ storageKeyToken = "gha-live-token"
 storageKeyUrl :: String
 storageKeyUrl = "gha-live-url"
 
+storageKeyConfig :: String
+storageKeyConfig = "gha-live-config"
+
 rootComponent
   :: forall q i o. H.Component q i o Aff
 rootComponent =
@@ -238,8 +241,10 @@ handleAction = case _ of
       loc <- location w
       search loc
     case parseConfig qs of
-      Nothing -> pure unit
       Just cfg -> startWatching cfg
+      Nothing -> case saved.config of
+        Just cfg -> startWatching cfg
+        Nothing -> pure unit
   SetFormUrl url -> do
     H.modify_ _ { formUrl = url }
     liftEffect $ saveField storageKeyUrl url
@@ -297,6 +302,7 @@ handleAction = case _ of
       , error = Nothing
       , loading = false
       }
+    liftEffect clearConfig
   Tick -> do
     st <- H.get
     case st.config of
@@ -313,6 +319,7 @@ startWatching cfg = do
     , loading = true
     , error = Nothing
     }
+  liftEffect $ saveConfig cfg
   doFetch cfg
   _ <- H.subscribe $ ticker 5000.0
   pure unit
@@ -362,6 +369,7 @@ type Saved =
   { url :: String
   , token :: String
   , targets :: Array Target
+  , config :: Maybe Config
   }
 
 loadSaved :: Effect Saved
@@ -372,7 +380,36 @@ loadSaved = do
   token <- fromMaybe "" <$>
     Storage.getItem storageKeyToken s
   targets <- loadTargets s
-  pure { url, token, targets }
+  config <- loadConfig s
+  pure { url, token, targets, config }
+
+loadConfig :: Storage.Storage -> Effect (Maybe Config)
+loadConfig s = do
+  raw <- Storage.getItem storageKeyConfig s
+  pure $ case raw of
+    Nothing -> Nothing
+    Just str -> do
+      json <- hush (jsonParser str)
+      obj <-
+        hush (decodeJson json)
+          :: Maybe
+               { owner :: String
+               , repo :: String
+               , token :: String
+               , refTag :: String
+               , refVal :: String
+               }
+      ref <- case obj.refTag of
+        "pr" -> PR <$> Int.fromString obj.refVal
+        "sha" -> Just (SHA obj.refVal)
+        "branch" -> Just (Branch obj.refVal)
+        _ -> Nothing
+      Just
+        { owner: obj.owner
+        , repo: obj.repo
+        , token: obj.token
+        , ref
+        }
 
 loadTargets :: Storage.Storage -> Effect (Array Target)
 loadTargets s = do
@@ -396,6 +433,30 @@ saveTargets targets = do
   Storage.setItem storageKeyTargets
     (stringify (encodeJson targets))
     s
+
+saveConfig :: Config -> Effect Unit
+saveConfig cfg = do
+  let
+    { tag, val } = case cfg.ref of
+      PR n -> { tag: "pr", val: show n }
+      SHA s -> { tag: "sha", val: s }
+      Branch b -> { tag: "branch", val: b }
+    json = encodeJson
+      { owner: cfg.owner
+      , repo: cfg.repo
+      , token: cfg.token
+      , refTag: tag
+      , refVal: val
+      }
+  w <- window
+  s <- localStorage w
+  Storage.setItem storageKeyConfig (stringify json) s
+
+clearConfig :: Effect Unit
+clearConfig = do
+  w <- window
+  s <- localStorage w
+  Storage.removeItem storageKeyConfig s
 
 saveField :: String -> String -> Effect Unit
 saveField key val = do
