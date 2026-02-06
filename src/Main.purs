@@ -6,7 +6,7 @@ import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Decode.Class (decodeJson)
 import Data.Argonaut.Encode.Class (encodeJson)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Array (any, filter, foldl, index, length, nub, null, snoc)
+import Data.Array (any, filter, find, foldl, index, length, nub, null, snoc)
 import Data.Either (Either(..), hush)
 import Data.Int (ceil, fromString, toNumber) as Int
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -61,6 +61,7 @@ type State =
   , rateLimit :: Maybe RateLimit
   , tickSub :: Maybe H.SubscriptionId
   , showSidebarForm :: Boolean
+  , heading :: String
   }
 
 data Action
@@ -107,6 +108,7 @@ rootComponent =
         , rateLimit: Nothing
         , tickSub: Nothing
         , showSidebarForm: false
+        , heading: ""
         }
     , render
     , eval: H.mkEval H.defaultEval
@@ -124,7 +126,13 @@ render state = case state.config of
       [ renderSidebar state
       , HH.div
           [ HP.class_ (HH.ClassName "main") ]
-          ( [ renderToolbar state ]
+          ( [ renderToolbar state
+            , if state.heading == "" then HH.text ""
+              else
+                HH.h2
+                  [ HP.class_ (HH.ClassName "heading") ]
+                  [ HH.text state.heading ]
+            ]
               <>
                 if state.loading && null state.pipeline then
                   [ HH.text "Loading..." ]
@@ -665,6 +673,19 @@ doFetch cfg = do
                 }
             )
             prs
+        title = case cfg.ref of
+          PR n ->
+            let
+              prTitle = case prsResult of
+                Left _ -> Nothing
+                Right { prs } ->
+                  map _.title
+                    (find (\p -> p.number == n) prs)
+            in
+              "#" <> show n <> fromMaybe ""
+                (map (\t -> " " <> t) prTitle)
+          Branch b -> b
+          SHA s -> take 7 s
       in
         do
           st <- H.get
@@ -681,6 +702,9 @@ doFetch cfg = do
             , rateLimit = rl'
             , interval = newInterval
             , targets = merged
+            , heading = cfg.owner <> "/" <> cfg.repo
+                <> " — "
+                <> title
             }
           liftEffect $ saveTargets merged
 
