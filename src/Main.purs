@@ -45,6 +45,7 @@ main = HA.runHalogenAff do
 type Target =
   { url :: String
   , label :: String
+  , title :: String
   }
 
 type State =
@@ -314,17 +315,35 @@ renderRepoNode owner node =
   ]
     <> map renderRefItem node.entries
 
+truncate :: Int -> String -> String
+truncate n s =
+  if SCU.length s <= n then s
+  else take n s <> "…"
+
 renderRefItem
   :: forall w. TargetParts -> HH.HTML w Action
 renderRefItem parts =
   HH.div
     [ HE.onClick \_ -> SelectTarget parts.target
     , HP.class_ (HH.ClassName "tree-ref")
+    , HP.title (refText <> titleText)
     ]
-    [ HH.text
-        if parts.ref == "" then "(default)"
-        else parts.ref
+    [ HH.text refText
+    , if parts.target.title == "" then HH.text ""
+      else
+        HH.span
+          [ HP.class_ (HH.ClassName "tree-ref-title") ]
+          [ HH.text
+              (" " <> truncate 24 parts.target.title)
+          ]
     ]
+  where
+  refText =
+    if parts.ref == "" then "(default)"
+    else parts.ref
+  titleText =
+    if parts.target.title == "" then ""
+    else " " <> parts.target.title
 
 renderToolbar
   :: forall w. State -> HH.HTML w Action
@@ -466,21 +485,41 @@ renderFormRef
   :: forall w. TargetParts -> HH.HTML w Action
 renderFormRef parts =
   HH.div
-    [ HP.class_ (HH.ClassName "target") ]
+    [ HP.class_ (HH.ClassName "target")
+    , HP.title (refText <> titleText)
+    ]
     [ HH.span
         [ HE.onClick \_ -> SelectTarget parts.target
         , HP.class_ (HH.ClassName "target-label")
         ]
-        [ HH.text
-            if parts.ref == "" then "(default)"
-            else parts.ref
-        ]
+        ( [ HH.text refText ]
+            <>
+              if parts.target.title == "" then []
+              else
+                [ HH.span
+                    [ HP.class_
+                        (HH.ClassName "target-title")
+                    ]
+                    [ HH.text
+                        ( " " <> truncate 36
+                            parts.target.title
+                        )
+                    ]
+                ]
+        )
     , HH.span
         [ HE.onClick \_ -> RemoveTarget parts.target
         , HP.class_ (HH.ClassName "target-remove")
         ]
         [ HH.text "x" ]
     ]
+  where
+  refText =
+    if parts.ref == "" then "(default)"
+    else parts.ref
+  titleText =
+    if parts.target.title == "" then ""
+    else " " <> parts.target.title
 
 handleAction
   :: forall o
@@ -526,6 +565,7 @@ handleAction = case _ of
           target =
             { url: st.formUrl
             , label: owner <> "/" <> repo <> refLabel ref
+            , title: ""
             }
         in
           do
@@ -670,6 +710,7 @@ doFetch cfg = do
                 , label: cfg.owner <> "/" <> cfg.repo
                     <> " #"
                     <> show pr.number
+                , title: pr.title
                 }
             )
             prs
@@ -789,10 +830,24 @@ loadTargets s = do
       Just ts -> ts
 
 decodeTargets :: Json -> Maybe (Array Target)
-decodeTargets json = case decodeJson json of
-  Left _ -> Nothing
-  Right (arr :: Array { url :: String, label :: String }) ->
-    Just arr
+decodeTargets json =
+  case decodeJson json of
+    Right
+      ( arr
+          :: Array
+               { url :: String
+               , label :: String
+               , title :: String
+               }
+      ) -> Just arr
+    _ -> case decodeJson json of
+      Right
+        ( arr
+            :: Array { url :: String, label :: String }
+        ) -> Just $ map
+        (\t -> { url: t.url, label: t.label, title: "" })
+        arr
+      _ -> Nothing
 
 saveTargets :: Array Target -> Effect Unit
 saveTargets targets = do

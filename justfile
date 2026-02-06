@@ -16,7 +16,7 @@ lint:
 ci: lint build bundle
 
 serve: bundle
-    python3 -m http.server 8080 -d dist
+    python3 -m http.server 10000 -d dist
 
 clean:
     rm -rf output/ dist/index.js
