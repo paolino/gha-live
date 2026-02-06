@@ -11,8 +11,8 @@ import Data.Int (toNumber)
 import Data.Maybe (Maybe(..))
 import Data.String.CodeUnits (length) as S
 import Halogen.HTML as HH
-import Halogen.HTML.Core (ClassName(..))
-import Halogen.HTML.Events as HE
+import Halogen.HTML.Core (ClassName(..), ElemName(..))
+import Halogen.HTML.Properties as HP
 import Halogen.Svg.Attributes as SA
 import Halogen.Svg.Attributes.CSSLength (CSSLength(..))
 import Halogen.Svg.Attributes.Color (Color(..))
@@ -101,11 +101,10 @@ svgHeight runs =
       + padding
 
 renderPipeline
-  :: forall w a
-   . (String -> a)
-  -> Array RunView
-  -> HH.HTML w a
-renderPipeline onClick runs =
+  :: forall w i
+   . Array RunView
+  -> HH.HTML w i
+renderPipeline runs =
   let
     w = svgWidth runs
     h = svgHeight runs
@@ -115,16 +114,15 @@ renderPipeline onClick runs =
       , SA.width w
       , SA.height h
       ]
-      (mapWithIndex (renderRun onClick runs) runs)
+      (mapWithIndex (renderRun runs) runs)
 
 renderRun
-  :: forall w a
-   . (String -> a)
-  -> Array RunView
+  :: forall w i
+   . Array RunView
   -> Int
   -> RunView
-  -> HH.HTML w a
-renderRun onClick runs colIdx run =
+  -> HH.HTML w i
+renderRun runs colIdx run =
   let
     xOff = colOffset runs colIdx
     w = colWidth run
@@ -141,19 +139,18 @@ renderRun onClick runs colIdx run =
             [ HH.text run.name ]
         ]
           <> mapWithIndex
-            (renderJob onClick xOff w)
+            (renderJob xOff w)
             run.jobs
       )
 
 renderJob
-  :: forall w a
-   . (String -> a)
-  -> Number
+  :: forall w i
+   . Number
   -> Number
   -> Int
   -> JobView
-  -> HH.HTML w a
-renderJob onClick xOff colW rowIdx job =
+  -> HH.HTML w i
+renderJob xOff colW rowIdx job =
   let
     boxW = textWidth job.name
     xBox = xOff + (colW - boxW) / 2.0
@@ -164,10 +161,7 @@ renderJob onClick xOff colW rowIdx job =
         [ ClassName "job-node", ClassName "running" ]
       _ -> [ ClassName "job-node" ]
   in
-    SE.g
-      [ HE.onClick (\_ -> onClick job.htmlUrl)
-      , SA.classes classes
-      ]
+    svgA job.htmlUrl classes
       [ SE.rect
           [ SA.x xBox
           , SA.y yBox
@@ -187,3 +181,18 @@ renderJob onClick xOff colW rowIdx job =
           ]
           [ HH.text job.name ]
       ]
+
+svgA
+  :: forall w i
+   . String
+  -> Array ClassName
+  -> Array (HH.HTML w i)
+  -> HH.HTML w i
+svgA url classes children =
+  SE.element (ElemName "a")
+    [ SA.href url
+    , HP.attr (HH.AttrName "target") "_blank"
+    , HP.attr (HH.AttrName "rel") "noopener"
+    , SA.classes classes
+    ]
+    children
