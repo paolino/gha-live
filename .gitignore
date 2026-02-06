@@ -1,0 +1,5 @@
+output/
+dist/index.js
+.spago/
+node_modules/
+.psci_modules/

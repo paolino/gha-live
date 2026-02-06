@@ -1,0 +1,28 @@
+package:
+  name: gha-live
+  dependencies:
+    - prelude
+    - effect
+    - aff
+    - console
+    - halogen
+    - halogen-svg-elems
+    - fetch
+    - argonaut
+    - argonaut-codecs
+    - arrays
+    - maybe
+    - either
+    - foldable-traversable
+    - tuples
+    - web-html
+    - web-dom
+  bundle:
+    module: Main
+    outfile: dist/index.js
+    platform: browser
+    type: app
+
+workspace:
+  packageSet:
+    registry: 72.1.0
