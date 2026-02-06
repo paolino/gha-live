@@ -21,6 +21,7 @@ import Data.Traversable (traverse)
 import Effect.Aff (Aff, try)
 import Effect.Exception (message)
 import Fetch (fetch)
+import Data.Number.Format as NF
 import Foreign.Object as FO
 
 type Config =
@@ -36,7 +37,7 @@ data Ref
   | Branch String
 
 type WorkflowRun =
-  { id :: Int
+  { id :: Number
   , name :: String
   , status :: String
   , conclusion :: Maybe String
@@ -45,12 +46,12 @@ type WorkflowRun =
   }
 
 type Job =
-  { id :: Int
+  { id :: Number
   , name :: String
   , status :: String
   , conclusion :: Maybe String
   , htmlUrl :: String
-  , runId :: Int
+  , runId :: Number
   }
 
 newtype WRun = WRun WorkflowRun
@@ -163,10 +164,10 @@ resolveRef cfg = case cfg.ref of
       pure head.sha
 
 fetchJobs
-  :: Config -> Int -> Aff (Either String (Array Job))
+  :: Config -> Number -> Aff (Either String (Array Job))
 fetchJobs cfg runId = do
   result <- ghFetch cfg
-    ("/actions/runs/" <> show runId <> "/jobs?per_page=100")
+    ("/actions/runs/" <> showId runId <> "/jobs?per_page=100")
   pure $ result >>= \json -> do
     jobs :: Array WJob <- decodeField "jobs" json
     pure $ map (\(WJob j) -> j) jobs
@@ -195,3 +196,6 @@ fetchPipeline cfg = do
           )
           jobResults
       pure $ Right { runs, jobs: allJobs }
+
+showId :: Number -> String
+showId = NF.toString
