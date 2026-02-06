@@ -562,6 +562,29 @@ renderForm state =
                   ]
               ]
           ]
+      , HH.div
+          [ HP.class_ (HH.ClassName "repo-links") ]
+          [ HH.a
+              [ HP.href
+                  "https://github.com/paolino/gha-live"
+              , HP.target "_blank"
+              ]
+              [ HH.text "GitHub" ]
+          , HH.text " · "
+          , HH.a
+              [ HP.href
+                  "https://github.com/paolino/gha-live/issues"
+              , HP.target "_blank"
+              ]
+              [ HH.text "Issues" ]
+          , HH.text " · "
+          , HH.img
+              [ HP.src
+                  "https://img.shields.io/github/stars/paolino/gha-live?style=flat&color=333"
+              , HP.alt "GitHub stars"
+              , HP.class_ (HH.ClassName "badge")
+              ]
+          ]
       ]
         <> renderTargets state.targets
     )
