@@ -49,6 +49,8 @@ type State =
   , formUrl :: String
   , formToken :: String
   , targets :: Array Target
+  , interval :: Int
+  , secondsLeft :: Int
   }
 
 data Action
@@ -61,6 +63,7 @@ data Action
   | Refresh
   | SelectTarget Target
   | RemoveTarget Target
+  | ChangeInterval Int
 
 storageKeyTargets :: String
 storageKeyTargets = "gha-live-targets"
@@ -86,6 +89,8 @@ rootComponent =
         , formUrl: ""
         , formToken: ""
         , targets: []
+        , interval: 5
+        , secondsLeft: 5
         }
     , render
     , eval: H.mkEval H.defaultEval
@@ -100,12 +105,12 @@ render state = case state.config of
   Just _ ->
     if state.loading && null state.pipeline then
       HH.div_
-        [ renderToolbar true
+        [ renderToolbar state
         , HH.text "Loading..."
         ]
     else
       HH.div_
-        ( [ renderToolbar state.loading ]
+        ( [ renderToolbar state ]
             <> case state.error of
               Just err ->
                 [ HH.div
@@ -127,8 +132,8 @@ render state = case state.config of
         )
 
 renderToolbar
-  :: forall w. Boolean -> HH.HTML w Action
-renderToolbar loading =
+  :: forall w. State -> HH.HTML w Action
+renderToolbar state =
   HH.div
     [ HP.class_ (HH.ClassName "toolbar") ]
     [ HH.button
@@ -139,10 +144,30 @@ renderToolbar loading =
     , HH.button
         [ HE.onClick \_ -> Refresh
         , HP.class_ (HH.ClassName "btn-back")
-        , HP.disabled loading
+        , HP.disabled state.loading
         ]
         [ HH.text
-            if loading then "Refreshing..." else "Refresh"
+            if state.loading then "Refreshing..."
+            else "Refresh"
+        ]
+    , HH.span
+        [ HP.class_ (HH.ClassName "toolbar-timer") ]
+        [ HH.button
+            [ HE.onClick \_ -> ChangeInterval (-5)
+            , HP.class_ (HH.ClassName "btn-small")
+            , HP.disabled (state.interval <= 5)
+            ]
+            [ HH.text "-" ]
+        , HH.text
+            ( show state.secondsLeft <> "s / "
+                <> show state.interval
+                <> "s"
+            )
+        , HH.button
+            [ HE.onClick \_ -> ChangeInterval 5
+            , HP.class_ (HH.ClassName "btn-small")
+            ]
+            [ HH.text "+" ]
         ]
     ]
 
@@ -293,7 +318,10 @@ handleAction = case _ of
     case st.config of
       Nothing -> pure unit
       Just cfg -> do
-        H.modify_ _ { loading = true }
+        H.modify_ _
+          { loading = true
+          , secondsLeft = st.interval
+          }
         doFetch cfg
   Back -> do
     H.modify_ _
@@ -303,25 +331,40 @@ handleAction = case _ of
       , loading = false
       }
     liftEffect clearConfig
+  ChangeInterval delta -> do
+    st <- H.get
+    let
+      newInterval = max 5 (st.interval + delta)
+    H.modify_ _
+      { interval = newInterval
+      , secondsLeft = min st.secondsLeft newInterval
+      }
   Tick -> do
     st <- H.get
     case st.config of
       Nothing -> pure unit
-      Just cfg -> doFetch cfg
+      Just cfg ->
+        if st.secondsLeft <= 1 then do
+          H.modify_ _ { loading = true, secondsLeft = st.interval }
+          doFetch cfg
+        else
+          H.modify_ _ { secondsLeft = st.secondsLeft - 1 }
 
 startWatching
   :: forall o
    . Config
   -> H.HalogenM State Action () o Aff Unit
 startWatching cfg = do
+  st <- H.get
   H.modify_ _
     { config = Just cfg
     , loading = true
     , error = Nothing
+    , secondsLeft = st.interval
     }
   liftEffect $ saveConfig cfg
   doFetch cfg
-  _ <- H.subscribe $ ticker 5000.0
+  _ <- H.subscribe $ ticker 1000.0
   pure unit
 
 doFetch
