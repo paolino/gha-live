@@ -103,33 +103,60 @@ render :: State -> H.ComponentHTML Action () Aff
 render state = case state.config of
   Nothing -> renderForm state
   Just _ ->
-    if state.loading && null state.pipeline then
-      HH.div_
-        [ renderToolbar state
-        , HH.text "Loading..."
-        ]
-    else
-      HH.div_
-        ( [ renderToolbar state ]
-            <> case state.error of
-              Just err ->
-                [ HH.div
-                    [ HP.class_ (HH.ClassName "error") ]
-                    [ HH.text err ]
-                ]
-              Nothing -> []
-            <>
-              if null state.pipeline then
-                [ HH.div
-                    [ HP.class_ (HH.ClassName "muted") ]
-                    [ HH.text
-                        "No workflow runs found."
-                    ]
-                ]
-              else
-                [ renderPipeline state.pipeline
-                ]
-        )
+    HH.div
+      [ HP.class_ (HH.ClassName "layout") ]
+      [ renderSidebar state
+      , HH.div
+          [ HP.class_ (HH.ClassName "main") ]
+          ( [ renderToolbar state ]
+              <>
+                if state.loading && null state.pipeline then
+                  [ HH.text "Loading..." ]
+                else
+                  ( case state.error of
+                      Just err ->
+                        [ HH.div
+                            [ HP.class_ (HH.ClassName "error") ]
+                            [ HH.text err ]
+                        ]
+                      Nothing -> []
+                      <>
+                        if null state.pipeline then
+                          [ HH.div
+                              [ HP.class_
+                                  (HH.ClassName "muted")
+                              ]
+                              [ HH.text
+                                  "No workflow runs found."
+                              ]
+                          ]
+                        else
+                          [ renderPipeline state.pipeline
+                          ]
+                  )
+          )
+      ]
+
+renderSidebar
+  :: forall w. State -> HH.HTML w Action
+renderSidebar state =
+  HH.div
+    [ HP.class_ (HH.ClassName "sidebar") ]
+    ( [ HH.div
+          [ HP.class_ (HH.ClassName "sidebar-title") ]
+          [ HH.text "Targets" ]
+      ]
+        <> map renderSidebarTarget state.targets
+    )
+
+renderSidebarTarget
+  :: forall w. Target -> HH.HTML w Action
+renderSidebarTarget target =
+  HH.div
+    [ HE.onClick \_ -> SelectTarget target
+    , HP.class_ (HH.ClassName "sidebar-item")
+    ]
+    [ HH.text target.label ]
 
 renderToolbar
   :: forall w. State -> HH.HTML w Action
