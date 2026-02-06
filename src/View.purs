@@ -46,7 +46,7 @@ labelH :: Number
 labelH = 20.0
 
 charW :: Number
-charW = 7.0
+charW = 8.0
 
 hPad :: Number
 hPad = 16.0
@@ -183,7 +183,7 @@ renderJob xOff colW rowIdx job =
           [ SA.x (xBox + boxW / 2.0)
           , SA.y (yBox + jobH / 2.0 + 4.0)
           , SA.fill (Named "#ffffff")
-          , SA.fontSize (FontSizeLength (Px 11.0))
+          , SA.fontSize (FontSizeLength (Px 13.0))
           , SA.textAnchor AnchorMiddle
           , SA.class_ (ClassName "job-label")
           ]
