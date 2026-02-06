@@ -278,14 +278,14 @@ renderInputs state =
                   ]
               , HH.button
                   [ HE.onClick \_ -> Submit
-                  , HP.class_ (HH.ClassName "btn btn-sm")
+                  , HP.class_ (HH.ClassName "btn-small")
                   ]
-                  [ HH.text "Watch" ]
+                  [ HH.text "\x2713" ]
               , HH.button
                   [ HE.onClick \_ -> ToggleSidebarForm
                   , HP.class_ (HH.ClassName "btn-small")
                   ]
-                  [ HH.text "x" ]
+                  [ HH.text "\x2717" ]
               ]
           ]
       ]
@@ -317,14 +317,14 @@ renderInputs state =
                     ]
                 , HH.button
                     [ HE.onClick \_ -> ToggleTokenForm
-                    , HP.class_ (HH.ClassName "btn btn-sm")
+                    , HP.class_ (HH.ClassName "btn-small")
                     ]
-                    [ HH.text "OK" ]
+                    [ HH.text "\x2713" ]
                 , HH.button
                     [ HE.onClick \_ -> ToggleTokenForm
                     , HP.class_ (HH.ClassName "btn-small")
                     ]
-                    [ HH.text "x" ]
+                    [ HH.text "\x2717" ]
                 ]
             ]
         ]
