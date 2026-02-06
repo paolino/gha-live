@@ -449,7 +449,7 @@ renderForm state =
       , HH.p
           [ HP.class_ (HH.ClassName "muted") ]
           [ HH.text
-              "Paste a GitHub URL and token to watch CI live."
+              "Watch GitHub Actions pipelines in real time."
           ]
       , HH.div
           [ HP.class_ (HH.ClassName "form") ]
@@ -480,10 +480,74 @@ renderForm state =
               [ HP.class_ (HH.ClassName "error") ]
               [ HH.text err ]
           Nothing -> HH.text ""
-      , HH.p
-          [ HP.class_ (HH.ClassName "hint") ]
-          [ HH.text
-              "URLs: .../pull/N, .../issues/N, .../tree/branch, .../commit/sha"
+      , HH.div
+          [ HP.class_ (HH.ClassName "instructions") ]
+          [ HH.h3_ [ HH.text "Getting started" ]
+          , HH.ol_
+              [ HH.li_
+                  [ HH.text "Create a "
+                  , HH.strong_ [ HH.text "GitHub token" ]
+                  , HH.text
+                      " with read access to Actions and Pull Requests"
+                  ]
+              , HH.li_
+                  [ HH.text
+                      "Paste any GitHub URL: PR, branch, commit, or repo"
+                  ]
+              , HH.li_
+                  [ HH.text
+                      "Click Watch to see workflow runs and jobs live"
+                  ]
+              ]
+          , HH.h3_ [ HH.text "Supported URLs" ]
+          , HH.ul
+              [ HP.class_ (HH.ClassName "url-examples") ]
+              [ HH.li_
+                  [ HH.code_
+                      [ HH.text
+                          ".../owner/repo/pull/123"
+                      ]
+                  , HH.text " — watch a PR"
+                  ]
+              , HH.li_
+                  [ HH.code_
+                      [ HH.text
+                          ".../owner/repo/tree/branch"
+                      ]
+                  , HH.text " — watch a branch"
+                  ]
+              , HH.li_
+                  [ HH.code_
+                      [ HH.text
+                          ".../owner/repo/commit/sha"
+                      ]
+                  , HH.text " — watch a commit"
+                  ]
+              , HH.li_
+                  [ HH.code_
+                      [ HH.text ".../owner/repo" ]
+                  , HH.text " — watch main branch"
+                  ]
+              ]
+          , HH.h3_ [ HH.text "Features" ]
+          , HH.ul_
+              [ HH.li_
+                  [ HH.text
+                      "Auto-refresh with adaptive rate limiting"
+                  ]
+              , HH.li_
+                  [ HH.text
+                      "Open PRs are discovered automatically"
+                  ]
+              , HH.li_
+                  [ HH.text
+                      "Targets are saved in your browser"
+                  ]
+              , HH.li_
+                  [ HH.text
+                      "Click any job to open it on GitHub"
+                  ]
+              ]
           ]
       ]
         <> renderTargets state.targets
