@@ -216,15 +216,44 @@ buildTree targets =
       )
       owners
 
+renderInputs
+  :: forall w. State -> Array (HH.HTML w Action)
+renderInputs state =
+  [ HH.div
+      [ HP.class_ (HH.ClassName "sidebar-form") ]
+      [ HH.input
+          [ HP.type_ HP.InputText
+          , HP.placeholder "GitHub URL"
+          , HP.value state.formUrl
+          , HE.onValueInput SetFormUrl
+          , HP.class_ (HH.ClassName "input input-sm")
+          ]
+      , HH.input
+          [ HP.type_ HP.InputPassword
+          , HP.placeholder "Token"
+          , HP.value state.formToken
+          , HE.onValueInput SetFormToken
+          , HP.class_ (HH.ClassName "input input-sm")
+          ]
+      , HH.button
+          [ HE.onClick \_ -> Submit
+          , HP.class_ (HH.ClassName "btn btn-sm")
+          ]
+          [ HH.text "Watch" ]
+      ]
+  ]
+
 renderSidebar
   :: forall w. State -> HH.HTML w Action
 renderSidebar state =
   HH.div
     [ HP.class_ (HH.ClassName "sidebar") ]
-    ( [ HH.div
-          [ HP.class_ (HH.ClassName "sidebar-title") ]
-          [ HH.text "Targets" ]
-      ]
+    ( renderInputs state
+        <>
+          [ HH.div
+              [ HP.class_ (HH.ClassName "sidebar-title") ]
+              [ HH.text "Targets" ]
+          ]
         <> bind (buildTree state.targets)
           renderOwnerNode
     )
