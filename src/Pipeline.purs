@@ -22,14 +22,14 @@ data Status
   | Skipped
 
 type JobView =
-  { id :: Int
+  { id :: Number
   , name :: String
   , status :: Status
   , htmlUrl :: String
   }
 
 type RunView =
-  { id :: Int
+  { id :: Number
   , name :: String
   , status :: Status
   , jobs :: Array JobView
@@ -61,7 +61,7 @@ buildPipeline runs jobs =
     , jobs: map toJobView (jobsForRun run.id)
     }
 
-  jobsForRun :: Int -> Array Job
+  jobsForRun :: Number -> Array Job
   jobsForRun runId = filter (\j -> j.runId == runId) jobs
 
   toJobView :: Job -> JobView
