@@ -338,14 +338,13 @@ renderSidebar
 renderSidebar state =
   HH.div
     [ HP.class_ (HH.ClassName "sidebar") ]
-    ( renderInputs state
-        <>
-          [ HH.div
-              [ HP.class_ (HH.ClassName "sidebar-title") ]
-              [ HH.text "Targets" ]
-          ]
+    ( [ HH.div
+          [ HP.class_ (HH.ClassName "sidebar-title") ]
+          [ HH.text "Targets" ]
+      ]
         <> bind (buildTree state.targets)
           renderOwnerNode
+        <> renderInputs state
         <>
           [ HH.button
               [ HE.onClick \_ -> ResetAll
