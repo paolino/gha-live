@@ -769,7 +769,14 @@ refLabel = case _ of
 
 addTarget :: Target -> Array Target -> Array Target
 addTarget t ts =
-  if any (\x -> x.url == t.url) ts then ts
+  if any (\x -> x.url == t.url) ts then
+    map
+      ( \x ->
+          if x.url == t.url && t.title /= "" then
+            x { title = t.title }
+          else x
+      )
+      ts
   else snoc ts t
 
 -- localStorage helpers
