@@ -43,6 +43,7 @@ data Ref
   = PR Int
   | SHA String
   | Branch String
+  | Default
 
 type WorkflowRun =
   { id :: Number
@@ -257,6 +258,15 @@ resolveRef cfg = case cfg.ref of
       head :: { sha :: String } <- decodeField "head"
         r.json
       pure head.sha
+  Default -> do
+    result <- ghFetch cfg ""
+    case
+      result >>= \r ->
+        decodeField "default_branch" r.json
+      of
+      Left err -> pure (Left err)
+      Right (branch :: String) ->
+        resolveRef cfg { ref = Branch branch }
 
 fetchJobs
   :: Config
