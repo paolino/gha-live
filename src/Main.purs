@@ -63,7 +63,8 @@ type State =
   , tickSub :: Maybe H.SubscriptionId
   , showSidebarForm :: Boolean
   , showTokenForm :: Boolean
-  , heading :: String
+  , headingRepo :: String
+  , headingTitle :: String
   }
 
 data Action
@@ -112,7 +113,8 @@ rootComponent =
         , tickSub: Nothing
         , showSidebarForm: false
         , showTokenForm: false
-        , heading: ""
+        , headingRepo: ""
+        , headingTitle: ""
         }
     , render
     , eval: H.mkEval H.defaultEval
@@ -131,11 +133,23 @@ render state = case state.config of
       , HH.div
           [ HP.class_ (HH.ClassName "main") ]
           ( [ renderToolbar state
-            , if state.heading == "" then HH.text ""
+            , if state.headingRepo == "" then HH.text ""
               else
                 HH.h2
                   [ HP.class_ (HH.ClassName "heading") ]
-                  [ HH.text state.heading ]
+                  [ HH.span
+                      [ HP.class_
+                          (HH.ClassName "heading-repo")
+                      ]
+                      [ HH.text
+                          (state.headingRepo <> " — ")
+                      ]
+                  , HH.span
+                      [ HP.class_
+                          (HH.ClassName "heading-title")
+                      ]
+                      [ HH.text state.headingTitle ]
+                  ]
             ]
               <>
                 if state.loading && null state.pipeline then
@@ -780,9 +794,8 @@ doFetch cfg = do
             , rateLimit = rl'
             , interval = newInterval
             , targets = merged
-            , heading = cfg.owner <> "/" <> cfg.repo
-                <> " — "
-                <> title
+            , headingRepo = cfg.owner <> "/" <> cfg.repo
+            , headingTitle = title
             }
           liftEffect $ saveTargets merged
 
