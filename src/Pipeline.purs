@@ -60,7 +60,8 @@ toStatus status conclusion = case status, conclusion of
 buildPipeline
   :: Array WorkflowRun -> Array Job -> Array RunView
 buildPipeline runs jobs =
-  map buildRun runs
+  sortBy (\a b -> compare a.name b.name)
+    $ map buildRun runs
   where
   buildRun :: WorkflowRun -> RunView
   buildRun run =
