@@ -16,12 +16,12 @@ lint:
 ci: lint build bundle
 
 serve: bundle
-    python3 -m http.server 10000 -d dist
+    npx serve dist -l 10000
 
 restart: bundle
-    -pkill -f 'http.server 10000'
+    -pkill -f 'serve dist -l 10000'
     sleep 1
-    python3 -m http.server 10000 -d dist
+    npx serve dist -l 10000
 
 clean:
     rm -rf output/ dist/index.js
