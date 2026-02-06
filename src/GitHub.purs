@@ -183,25 +183,35 @@ ghFetch cfg path = do
           }
       }
     body <- resp.text
-    pure { body, headers: resp.headers }
+    pure { body, headers: resp.headers, ok: resp.ok, status: resp.status }
   case result of
     Left err -> pure $ Left (message err)
     Right r -> case jsonParser r.body of
       Left e -> pure $ Left ("JSON parse error: " <> e)
       Right json ->
-        let
-          rl = do
-            rem <-
-              Headers.lookup "x-ratelimit-remaining"
-                r.headers
-                >>= Int.fromString
-            lim <-
-              Headers.lookup "x-ratelimit-limit"
-                r.headers
-                >>= Int.fromString
-            Just { remaining: rem, limit: lim }
-        in
-          pure $ Right { json, rateLimit: rl }
+        if not r.ok then
+          let
+            msg = case toObject json >>= FO.lookup "message" of
+              Just m -> case decodeJson m of
+                Right (s :: String) -> s
+                _ -> "HTTP " <> show r.status
+              Nothing -> "HTTP " <> show r.status
+          in
+            pure $ Left msg
+        else
+          let
+            rl = do
+              rem <-
+                Headers.lookup "x-ratelimit-remaining"
+                  r.headers
+                  >>= Int.fromString
+              lim <-
+                Headers.lookup "x-ratelimit-limit"
+                  r.headers
+                  >>= Int.fromString
+              Just { remaining: rem, limit: lim }
+          in
+            pure $ Right { json, rateLimit: rl }
 
 decodeField
   :: forall a
