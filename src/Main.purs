@@ -14,6 +14,7 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), drop, indexOf, split, take)
 import Data.String.CodeUnits as SCU
 import Effect (Effect)
+import FileIO (downloadJson, pickJsonFile)
 import Effect.Aff (Aff, Milliseconds(..), delay)
 import Effect.Aff as Aff
 import Effect.Class (liftEffect)
@@ -86,6 +87,8 @@ data Action
   | RemoveRepo String String
   | ToggleTokenForm
   | ResetAll
+  | ExportData
+  | ImportData
 
 storageKeyTargets :: String
 storageKeyTargets = "gha-live-targets"
@@ -346,11 +349,29 @@ renderSidebar state =
           renderOwnerNode
         <> renderInputs state
         <>
-          [ HH.button
-              [ HE.onClick \_ -> ResetAll
-              , HP.class_ (HH.ClassName "btn-reset")
+          [ HH.div
+              [ HP.class_
+                  (HH.ClassName "sidebar-actions")
               ]
-              [ HH.text "\x1F5D1" ]
+              [ HH.button
+                  [ HE.onClick \_ -> ExportData
+                  , HP.class_ (HH.ClassName "btn-reset")
+                  , HP.title "Export"
+                  ]
+                  [ HH.text "\x1F4E5" ]
+              , HH.button
+                  [ HE.onClick \_ -> ImportData
+                  , HP.class_ (HH.ClassName "btn-reset")
+                  , HP.title "Import"
+                  ]
+                  [ HH.text "\x1F4E4" ]
+              , HH.button
+                  [ HE.onClick \_ -> ResetAll
+                  , HP.class_ (HH.ClassName "btn-reset")
+                  , HP.title "Reset"
+                  ]
+                  [ HH.text "\x1F5D1" ]
+              ]
           ]
     )
 
@@ -815,6 +836,52 @@ handleAction = case _ of
         , headingRepo = ""
         , headingTitle = ""
         }
+  ExportData -> do
+    liftEffect do
+      w <- window
+      s <- localStorage w
+      targets <- fromMaybe "[]" <$>
+        Storage.getItem storageKeyTargets s
+      token <- fromMaybe "" <$>
+        Storage.getItem storageKeyToken s
+      url <- fromMaybe "" <$>
+        Storage.getItem storageKeyUrl s
+      config <- fromMaybe "" <$>
+        Storage.getItem storageKeyConfig s
+      let
+        json = stringify $ encodeJson
+          { targets, token, url, config }
+      downloadJson "gha-live.json" json
+  ImportData -> do
+    content <- H.liftAff pickJsonFile
+    case hush (jsonParser content) >>= \json ->
+      hush (decodeJson json) of
+      Nothing -> pure unit
+      Just
+        ( obj
+            :: { targets :: String
+               , token :: String
+               , url :: String
+               , config :: String
+               }
+        ) -> do
+        liftEffect do
+          w <- window
+          s <- localStorage w
+          Storage.setItem storageKeyTargets obj.targets s
+          Storage.setItem storageKeyToken obj.token s
+          Storage.setItem storageKeyUrl obj.url s
+          when (obj.config /= "")
+            $ Storage.setItem storageKeyConfig obj.config s
+        saved <- liftEffect loadSaved
+        H.modify_ _
+          { formUrl = saved.url
+          , formToken = saved.token
+          , targets = saved.targets
+          }
+        case saved.config of
+          Just cfg -> startWatching cfg
+          Nothing -> pure unit
   Refresh -> do
     st <- H.get
     case st.config of
