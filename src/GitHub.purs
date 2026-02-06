@@ -7,6 +7,8 @@ module GitHub
   , Step
   , WorkflowRun
   , Job
+  , fetchRuns
+  , fetchJobs
   , fetchPipeline
   , fetchOpenPRs
   ) where

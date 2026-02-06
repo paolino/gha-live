@@ -7,6 +7,7 @@ import Data.Argonaut.Decode.Class (decodeJson)
 import Data.Argonaut.Encode.Class (encodeJson)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (any, filter, find, foldl, index, length, nub, null, snoc)
+import Data.Array as Array
 import Data.Either (Either(..), hush)
 import Data.Int (ceil, fromString, toNumber) as Int
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -20,9 +21,11 @@ import GitHub
   ( Config
   , RateLimit
   , Ref(..)
+  , fetchJobs
   , fetchOpenPRs
-  , fetchPipeline
+  , fetchRuns
   )
+import GitHub as GitHub
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
@@ -880,24 +883,69 @@ doFetch
    . Config
   -> H.HalogenM State Action () o Aff Unit
 doFetch cfg = do
-  result <- H.liftAff (fetchPipeline cfg)
+  runsResult <- H.liftAff (fetchRuns cfg)
   prsResult <- H.liftAff (fetchOpenPRs cfg)
   let
     refCalls = case cfg.ref of
       SHA _ -> 0
       _ -> 1
-  case result of
+    prTargets = case prsResult of
+      Left _ -> []
+      Right { prs } -> map
+        ( \pr ->
+            { url: "https://github.com/"
+                <> cfg.owner
+                <> "/"
+                <> cfg.repo
+                <> "/pull/"
+                <> show pr.number
+            , label: cfg.owner <> "/" <> cfg.repo
+                <> " #"
+                <> show pr.number
+            , title: pr.title
+            }
+        )
+        prs
+    title = case cfg.ref of
+      PR n ->
+        let
+          prTitle = case prsResult of
+            Left _ -> Nothing
+            Right { prs } ->
+              map _.title
+                (find (\p -> p.number == n) prs)
+        in
+          "#" <> show n <> fromMaybe ""
+            (map (\t -> " " <> t) prTitle)
+      Branch b -> b
+      SHA s -> take 7 s
+  case runsResult of
     Left err ->
       H.modify_ _
         { error = Just err, loading = false }
-    Right { runs, jobs, rateLimit } ->
+    Right runs -> do
+      -- Show runs immediately with empty jobs
+      st <- H.get
+      let merged = foldl (flip addTarget) st.targets prTargets
+      H.modify_ _
+        { pipeline = buildPipeline runs []
+        , error = Nothing
+        , loading = true
+        , targets = merged
+        , headingRepo = cfg.owner <> "/" <> cfg.repo
+        , headingTitle = title
+        }
+      liftEffect $ saveTargets merged
+      -- Fetch jobs incrementally per run
+      allJobs <- fetchJobsIncremental cfg runs
+      st' <- H.get
       let
         prCalls = 1
         calls = refCalls + 1 + length runs + prCalls
-        rl' = case prsResult of
+        lastRL = case prsResult of
           Right { rateLimit: Just r } -> Just r
-          _ -> rateLimit
-        optInterval = case rl' of
+          _ -> st'.rateLimit
+        optInterval = case lastRL of
           Nothing -> Nothing
           Just rl ->
             let
@@ -907,57 +955,40 @@ doFetch cfg = do
                 )
             in
               Just (max 5 secs)
-        prTargets = case prsResult of
-          Left _ -> []
-          Right { prs } -> map
-            ( \pr ->
-                { url: "https://github.com/"
-                    <> cfg.owner
-                    <> "/"
-                    <> cfg.repo
-                    <> "/pull/"
-                    <> show pr.number
-                , label: cfg.owner <> "/" <> cfg.repo
-                    <> " #"
-                    <> show pr.number
-                , title: pr.title
-                }
-            )
-            prs
-        title = case cfg.ref of
-          PR n ->
-            let
-              prTitle = case prsResult of
-                Left _ -> Nothing
-                Right { prs } ->
-                  map _.title
-                    (find (\p -> p.number == n) prs)
-            in
-              "#" <> show n <> fromMaybe ""
-                (map (\t -> " " <> t) prTitle)
-          Branch b -> b
-          SHA s -> take 7 s
-      in
-        do
-          st <- H.get
-          let
-            merged = foldl (flip addTarget) st.targets
-              prTargets
-            newSafe = fromMaybe st.safeInterval optInterval
-            newInterval = fromMaybe st.interval optInterval
-          H.modify_ _
-            { pipeline = buildPipeline runs jobs
-            , error = Nothing
-            , loading = false
-            , apiCalls = calls
-            , rateLimit = rl'
-            , interval = newInterval
-            , safeInterval = newSafe
-            , targets = merged
-            , headingRepo = cfg.owner <> "/" <> cfg.repo
-            , headingTitle = title
+        newSafe = fromMaybe st'.safeInterval optInterval
+        newInterval = fromMaybe st'.interval optInterval
+      H.modify_ _
+        { pipeline = buildPipeline runs allJobs
+        , loading = false
+        , apiCalls = calls
+        , rateLimit = lastRL
+        , interval = newInterval
+        , safeInterval = newSafe
+        }
+
+fetchJobsIncremental
+  :: forall o
+   . Config
+  -> Array GitHub.WorkflowRun
+  -> H.HalogenM State Action () o Aff
+       (Array GitHub.Job)
+fetchJobsIncremental cfg runs = go runs []
+  where
+  go remaining acc = case Array.uncons remaining of
+    Nothing -> pure acc
+    Just { head: run, tail: rest } -> do
+      result <- H.liftAff (fetchJobs cfg run.id)
+      case result of
+        Left _ -> go rest acc
+        Right { jobs, rateLimit } -> do
+          let newAcc = acc <> jobs
+          H.modify_ \st -> st
+            { pipeline = buildPipeline runs newAcc
+            , rateLimit = case rateLimit of
+                Just rl -> Just rl
+                Nothing -> st.rateLimit
             }
-          liftEffect $ saveTargets merged
+          go rest newAcc
 
 ticker :: Number -> HS.Emitter Action
 ticker ms = HS.makeEmitter \emit -> do
