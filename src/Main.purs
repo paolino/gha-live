@@ -81,6 +81,7 @@ data Action
   | ChangeInterval Int
   | RemoveRepo String String
   | ToggleTokenForm
+  | ResetAll
 
 storageKeyTargets :: String
 storageKeyTargets = "gha-live-targets"
@@ -334,6 +335,13 @@ renderSidebar state =
           ]
         <> bind (buildTree state.targets)
           renderOwnerNode
+        <>
+          [ HH.button
+              [ HE.onClick \_ -> ResetAll
+              , HP.class_ (HH.ClassName "btn-reset")
+              ]
+              [ HH.text "Reset" ]
+          ]
     )
 
 renderOwnerNode
@@ -718,6 +726,26 @@ handleAction = case _ of
   ToggleTokenForm ->
     H.modify_ \st ->
       st { showTokenForm = not st.showTokenForm }
+  ResetAll -> do
+    liftEffect do
+      w <- window
+      s <- localStorage w
+      Storage.removeItem storageKeyTargets s
+      Storage.removeItem storageKeyToken s
+      Storage.removeItem storageKeyUrl s
+      Storage.removeItem storageKeyConfig s
+    H.modify_ _
+      { config = Nothing
+      , pipeline = []
+      , error = Nothing
+      , loading = false
+      , formUrl = ""
+      , formToken = ""
+      , targets = []
+      , tickSub = Nothing
+      , headingRepo = ""
+      , headingTitle = ""
+      }
   Refresh -> do
     st <- H.get
     case st.config of
