@@ -416,18 +416,31 @@ renderRefItem
   :: forall w. TargetParts -> HH.HTML w Action
 renderRefItem parts =
   HH.div
-    [ HE.onClick \_ -> SelectTarget parts.target
-    , HP.class_ (HH.ClassName "tree-ref")
+    [ HP.class_ (HH.ClassName "tree-ref")
     , HP.title (refText <> titleText)
     ]
-    [ HH.text refText
-    , if parts.target.title == "" then HH.text ""
-      else
-        HH.span
-          [ HP.class_ (HH.ClassName "tree-ref-title") ]
-          [ HH.text
-              (" " <> truncate 44 parts.target.title)
-          ]
+    [ HH.span
+        [ HE.onClick \_ -> SelectTarget parts.target ]
+        ( [ HH.text refText ]
+            <>
+              if parts.target.title == "" then []
+              else
+                [ HH.span
+                    [ HP.class_
+                        (HH.ClassName "tree-ref-title")
+                    ]
+                    [ HH.text
+                        ( " " <> truncate 44
+                            parts.target.title
+                        )
+                    ]
+                ]
+        )
+    , HH.span
+        [ HE.onClick \_ -> RemoveTarget parts.target
+        , HP.class_ (HH.ClassName "tree-remove")
+        ]
+        [ HH.text "x" ]
     ]
   where
   refText =
