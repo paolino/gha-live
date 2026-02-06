@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GHA Live</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1a1a2e; padding: 24px; }
+    .error { color: #f44336; }
+    .job-node { cursor: pointer; }
+    @keyframes pulse { 50% { opacity: 0.6; } }
+    .running { animation: pulse 1.5s ease-in-out infinite; }
+  </style>
 </head>
 <body>
   <div id="app"></div>
