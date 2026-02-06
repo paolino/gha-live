@@ -68,6 +68,7 @@ type State =
   , showSidebarForm :: Boolean
   , showTokenForm :: Boolean
   , removedUrls :: Array String
+  , showHelp :: Boolean
   , headingRepo :: String
   , headingTitle :: String
   , safeInterval :: Int
@@ -90,6 +91,7 @@ data Action
   | ResetAll
   | ExportData
   | ImportData
+  | ToggleHelp
 
 storageKeyTargets :: String
 storageKeyTargets = "gha-live-targets"
@@ -126,6 +128,7 @@ rootComponent =
         , showSidebarForm: false
         , showTokenForm: false
         , removedUrls: []
+        , showHelp: false
         , headingRepo: ""
         , headingTitle: ""
         , safeInterval: 5
@@ -376,8 +379,17 @@ renderSidebar state =
                   , HP.title "Reset"
                   ]
                   [ HH.text "\x1F5D1" ]
+              , HH.button
+                  [ HE.onClick \_ -> ToggleHelp
+                  , HP.class_ (HH.ClassName "btn-reset")
+                  , HP.title "Help"
+                  ]
+                  [ HH.text "?" ]
               ]
           ]
+        <>
+          if state.showHelp then [ renderHelp ]
+          else []
     )
 
 renderOwnerNode
@@ -506,6 +518,93 @@ renderToolbar state =
         ]
     ]
 
+renderHelp :: forall w i. HH.HTML w i
+renderHelp =
+  HH.div
+    [ HP.class_ (HH.ClassName "instructions") ]
+    [ HH.h3_ [ HH.text "Getting started" ]
+    , HH.ol_
+        [ HH.li_
+            [ HH.text "Create a "
+            , HH.strong_ [ HH.text "GitHub token" ]
+            , HH.text
+                " with read access to Actions and Pull Requests"
+            ]
+        , HH.li_
+            [ HH.text
+                "Paste any GitHub URL: PR, branch, commit, or repo"
+            ]
+        , HH.li_
+            [ HH.text
+                "Click Watch to see workflow runs and jobs live"
+            ]
+        ]
+    , HH.h3_ [ HH.text "Supported URLs" ]
+    , HH.ul
+        [ HP.class_ (HH.ClassName "url-examples") ]
+        [ HH.li_
+            [ HH.code_
+                [ HH.text ".../owner/repo/pull/123" ]
+            , HH.text " — watch a PR"
+            ]
+        , HH.li_
+            [ HH.code_
+                [ HH.text ".../owner/repo/tree/branch" ]
+            , HH.text " — watch a branch"
+            ]
+        , HH.li_
+            [ HH.code_
+                [ HH.text ".../owner/repo/commit/sha" ]
+            , HH.text " — watch a commit"
+            ]
+        , HH.li_
+            [ HH.code_
+                [ HH.text ".../owner/repo" ]
+            , HH.text " — watch main branch"
+            ]
+        ]
+    , HH.h3_ [ HH.text "Features" ]
+    , HH.ul_
+        [ HH.li_
+            [ HH.text
+                "Auto-refresh with adaptive rate limiting"
+            ]
+        , HH.li_
+            [ HH.text
+                "Open PRs are discovered automatically — hide any with "
+            , HH.code_ [ HH.text "x" ]
+            , HH.text ", re-add the URL to unhide"
+            ]
+        , HH.li_
+            [ HH.text
+                "Targets are saved in your browser"
+            ]
+        , HH.li_
+            [ HH.text
+                "Export / import your settings, or reset everything"
+            ]
+        , HH.li_
+            [ HH.text
+                "Click any job to open it on GitHub"
+            ]
+        ]
+    , HH.h3_ [ HH.text "Privacy" ]
+    , HH.ul_
+        [ HH.li_
+            [ HH.text
+                "No backend — the app is a static page that runs in your browser"
+            ]
+        , HH.li_
+            [ HH.text
+                "Your GitHub token is stored in localStorage and sent only to the GitHub API"
+            ]
+        , HH.li_
+            [ HH.text
+                "Nothing is logged or transmitted to any third party"
+            ]
+        ]
+    ]
+
 renderFooter :: forall w i. HH.HTML w i
 renderFooter =
   HH.div
@@ -572,97 +671,7 @@ renderForm state =
               [ HP.class_ (HH.ClassName "error") ]
               [ HH.text err ]
           Nothing -> HH.text ""
-      , HH.div
-          [ HP.class_ (HH.ClassName "instructions") ]
-          [ HH.h3_ [ HH.text "Getting started" ]
-          , HH.ol_
-              [ HH.li_
-                  [ HH.text "Create a "
-                  , HH.strong_ [ HH.text "GitHub token" ]
-                  , HH.text
-                      " with read access to Actions and Pull Requests"
-                  ]
-              , HH.li_
-                  [ HH.text
-                      "Paste any GitHub URL: PR, branch, commit, or repo"
-                  ]
-              , HH.li_
-                  [ HH.text
-                      "Click Watch to see workflow runs and jobs live"
-                  ]
-              ]
-          , HH.h3_ [ HH.text "Supported URLs" ]
-          , HH.ul
-              [ HP.class_ (HH.ClassName "url-examples") ]
-              [ HH.li_
-                  [ HH.code_
-                      [ HH.text
-                          ".../owner/repo/pull/123"
-                      ]
-                  , HH.text " — watch a PR"
-                  ]
-              , HH.li_
-                  [ HH.code_
-                      [ HH.text
-                          ".../owner/repo/tree/branch"
-                      ]
-                  , HH.text " — watch a branch"
-                  ]
-              , HH.li_
-                  [ HH.code_
-                      [ HH.text
-                          ".../owner/repo/commit/sha"
-                      ]
-                  , HH.text " — watch a commit"
-                  ]
-              , HH.li_
-                  [ HH.code_
-                      [ HH.text ".../owner/repo" ]
-                  , HH.text " — watch main branch"
-                  ]
-              ]
-          , HH.h3_ [ HH.text "Features" ]
-          , HH.ul_
-              [ HH.li_
-                  [ HH.text
-                      "Auto-refresh with adaptive rate limiting"
-                  ]
-              , HH.li_
-                  [ HH.text
-                      "Open PRs are discovered automatically — hide any with "
-                  , HH.code_ [ HH.text "x" ]
-                  , HH.text
-                      ", re-add the URL to unhide"
-                  ]
-              , HH.li_
-                  [ HH.text
-                      "Targets are saved in your browser"
-                  ]
-              , HH.li_
-                  [ HH.text
-                      "Export / import your settings, or reset everything"
-                  ]
-              , HH.li_
-                  [ HH.text
-                      "Click any job to open it on GitHub"
-                  ]
-              ]
-          , HH.h3_ [ HH.text "Privacy" ]
-          , HH.ul_
-              [ HH.li_
-                  [ HH.text
-                      "No backend — the app is a static page that runs in your browser"
-                  ]
-              , HH.li_
-                  [ HH.text
-                      "Your GitHub token is stored in localStorage and sent only to the GitHub API"
-                  ]
-              , HH.li_
-                  [ HH.text
-                      "Nothing is logged or transmitted to any third party"
-                  ]
-              ]
-          ]
+      , renderHelp
       , renderFooter
       ]
         <> renderTargets state.targets
@@ -863,6 +872,9 @@ handleAction = case _ of
   ToggleTokenForm ->
     H.modify_ \st ->
       st { showTokenForm = not st.showTokenForm }
+  ToggleHelp ->
+    H.modify_ \st ->
+      st { showHelp = not st.showHelp }
   ResetAll -> do
     ok <- liftEffect do
       w <- window
