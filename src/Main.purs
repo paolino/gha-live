@@ -324,11 +324,6 @@ renderToolbar state =
   HH.div
     [ HP.class_ (HH.ClassName "toolbar") ]
     [ HH.button
-        [ HE.onClick \_ -> Back
-        , HP.class_ (HH.ClassName "btn-back")
-        ]
-        [ HH.text "Back" ]
-    , HH.button
         [ HE.onClick \_ -> Refresh
         , HP.class_ (HH.ClassName "btn-back")
         , HP.disabled state.loading
