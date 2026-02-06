@@ -780,8 +780,15 @@ handleAction = case _ of
           do
             let
               newTargets = addTarget target st.targets
-            H.modify_ _ { targets = newTargets }
-            liftEffect $ saveTargets newTargets
+              newRemoved = filter (_ /= st.formUrl)
+                st.removedUrls
+            H.modify_ _
+              { targets = newTargets
+              , removedUrls = newRemoved
+              }
+            liftEffect do
+              saveTargets newTargets
+              saveRemoved newRemoved
             startWatching cfg
   SelectTarget target -> do
     H.modify_ _ { formUrl = target.url }
