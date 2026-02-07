@@ -69,6 +69,7 @@ type State =
   , showTokenForm :: Boolean
   , removedUrls :: Array String
   , showHelp :: Boolean
+  , mobilePage :: String
   , headingRepo :: String
   , headingTitle :: String
   , safeInterval :: Int
@@ -92,6 +93,7 @@ data Action
   | ExportData
   | ImportData
   | ToggleHelp
+  | SetMobilePage String
 
 storageKeyTargets :: String
 storageKeyTargets = "gha-live-targets"
@@ -129,6 +131,7 @@ rootComponent =
         , showTokenForm: false
         , removedUrls: []
         , showHelp: false
+        , mobilePage: "diagram"
         , headingRepo: ""
         , headingTitle: ""
         , safeInterval: 5
@@ -144,57 +147,65 @@ render :: State -> H.ComponentHTML Action () Aff
 render state = case state.config of
   Nothing -> renderForm state
   Just _ ->
-    HH.div
-      [ HP.class_ (HH.ClassName "layout") ]
-      [ renderSidebar state
+    HH.div_
+      [ renderToolbar state
       , HH.div
-          [ HP.class_ (HH.ClassName "main") ]
-          ( [ renderToolbar state
-            , if state.headingRepo == "" then HH.text ""
-              else
-                HH.h2
-                  [ HP.class_ (HH.ClassName "heading") ]
-                  [ HH.span
-                      [ HP.class_
-                          (HH.ClassName "heading-repo")
-                      ]
-                      [ HH.text
-                          (state.headingRepo <> " — ")
-                      ]
-                  , HH.span
-                      [ HP.class_
-                          (HH.ClassName "heading-title")
-                      ]
-                      [ HH.text state.headingTitle ]
-                  ]
-            ]
-              <>
-                if state.loading && null state.pipeline then
-                  [ HH.text "Loading..." ]
-                else
-                  ( case state.error of
-                      Just err ->
-                        [ HH.div
-                            [ HP.class_ (HH.ClassName "error") ]
-                            [ HH.text err ]
-                        ]
-                      Nothing -> []
-                      <>
-                        if null state.pipeline then
-                          [ HH.div
-                              [ HP.class_
-                                  (HH.ClassName "muted")
-                              ]
-                              [ HH.text
-                                  "No workflow runs found."
-                              ]
-                          ]
-                        else
-                          [ renderPipeline state.pipeline
-                          ]
+          [ HP.class_
+              ( HH.ClassName
+                  ( "layout mobile-"
+                      <> state.mobilePage
                   )
-                    <> [ renderFooter ]
-          )
+              )
+          ]
+          [ renderSidebar state
+          , HH.div
+              [ HP.class_ (HH.ClassName "main") ]
+              ( [ if state.headingRepo == "" then HH.text ""
+                  else
+                    HH.h2
+                      [ HP.class_ (HH.ClassName "heading") ]
+                      [ HH.span
+                          [ HP.class_
+                              (HH.ClassName "heading-repo")
+                          ]
+                          [ HH.text
+                              (state.headingRepo <> " — ")
+                          ]
+                      , HH.span
+                          [ HP.class_
+                              (HH.ClassName "heading-title")
+                          ]
+                          [ HH.text state.headingTitle ]
+                      ]
+                ]
+                  <>
+                    if state.loading && null state.pipeline then
+                      [ HH.text "Loading..." ]
+                    else
+                      ( case state.error of
+                          Just err ->
+                            [ HH.div
+                                [ HP.class_ (HH.ClassName "error") ]
+                                [ HH.text err ]
+                            ]
+                          Nothing -> []
+                          <>
+                            if null state.pipeline then
+                              [ HH.div
+                                  [ HP.class_
+                                      (HH.ClassName "muted")
+                                  ]
+                                  [ HH.text
+                                      "No workflow runs found."
+                                  ]
+                              ]
+                            else
+                              [ renderPipeline state.pipeline
+                              ]
+                      )
+                        <> [ renderFooter ]
+              )
+          ]
       ]
 
 type TargetParts =
@@ -468,6 +479,18 @@ renderToolbar state =
   HH.div
     [ HP.class_ (HH.ClassName "toolbar") ]
     [ HH.button
+        [ HE.onClick \_ -> SetMobilePage
+            if state.mobilePage == "diagram" then
+              "sidebar"
+            else "diagram"
+        , HP.class_ (HH.ClassName "btn-back mobile-toggle")
+        ]
+        [ HH.text
+            if state.mobilePage == "sidebar" then
+              "Diagram"
+            else "Targets"
+        ]
+    , HH.button
         [ HE.onClick \_ -> Refresh
         , HP.class_ (HH.ClassName "btn-back")
         , HP.disabled state.loading
@@ -827,7 +850,7 @@ handleAction = case _ of
               saveRemoved newRemoved
             startWatching cfg
   SelectTarget target -> do
-    H.modify_ _ { formUrl = target.url }
+    H.modify_ _ { formUrl = target.url, mobilePage = "diagram" }
     liftEffect $ saveField storageKeyUrl target.url
     handleAction Submit
   RemoveTarget target -> do
@@ -882,6 +905,8 @@ handleAction = case _ of
   ToggleHelp ->
     H.modify_ \st ->
       st { showHelp = not st.showHelp }
+  SetMobilePage page ->
+    H.modify_ _ { mobilePage = page }
   ResetAll -> do
     ok <- liftEffect do
       w <- window
