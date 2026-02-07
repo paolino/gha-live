@@ -150,12 +150,11 @@ render state = case state.config of
     HH.div_
       [ renderToolbar state
       , HH.div
-          [ HP.class_
-              ( HH.ClassName
-                  ( "layout mobile-"
-                      <> state.mobilePage
-                  )
-              )
+          [ HP.classes
+              [ HH.ClassName "layout"
+              , HH.ClassName
+                  ("mobile-" <> state.mobilePage)
+              ]
           ]
           [ renderSidebar state
           , HH.div
