@@ -480,15 +480,17 @@ renderToolbar state =
     [ HP.class_ (HH.ClassName "toolbar") ]
     [ HH.button
         [ HE.onClick \_ -> SetMobilePage
-            if state.mobilePage == "diagram" then
-              "sidebar"
-            else "diagram"
+            ( if state.mobilePage == "diagram" then
+                "sidebar"
+              else "diagram"
+            )
         , HP.class_ (HH.ClassName "btn-back mobile-toggle")
         ]
         [ HH.text
-            if state.mobilePage == "sidebar" then
-              "Diagram"
-            else "Targets"
+            ( if state.mobilePage == "sidebar" then
+                "Diagram"
+              else "Targets"
+            )
         ]
     , HH.button
         [ HE.onClick \_ -> Refresh
@@ -496,8 +498,9 @@ renderToolbar state =
         , HP.disabled state.loading
         ]
         [ HH.text
-            if state.loading then "Refreshing..."
-            else "Refresh"
+            ( if state.loading then "Refreshing..."
+              else "Refresh"
+            )
         ]
     , HH.span
         [ HP.class_ (HH.ClassName "toolbar-timer") ]
