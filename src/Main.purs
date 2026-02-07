@@ -73,6 +73,7 @@ type State =
   , headingRepo :: String
   , headingTitle :: String
   , safeInterval :: Int
+  , autoReload :: Boolean
   }
 
 data Action
@@ -94,6 +95,7 @@ data Action
   | ImportData
   | ToggleHelp
   | SetMobilePage String
+  | ToggleAutoReload
 
 storageKeyTargets :: String
 storageKeyTargets = "gha-live-targets"
@@ -135,6 +137,7 @@ rootComponent =
         , headingRepo: ""
         , headingTitle: ""
         , safeInterval: 5
+        , autoReload: true
         }
     , render
     , eval: H.mkEval H.defaultEval
@@ -344,6 +347,17 @@ renderInputs state =
                     ]
                     [ HH.text "\x2717" ]
                 ]
+            , HH.span
+                [ HP.class_ (HH.ClassName "hint") ]
+                [ HH.code_ [ HH.text "gh auth token" ]
+                , HH.text " or "
+                , HH.a
+                    [ HP.href
+                        "https://github.com/settings/tokens/new?scopes=repo&description=GHA+Live"
+                    , HP.target "_blank"
+                    ]
+                    [ HH.text "create one" ]
+                ]
             ]
         ]
       else
@@ -504,28 +518,39 @@ renderToolbar state =
     , HH.span
         [ HP.class_ (HH.ClassName "toolbar-timer") ]
         [ HH.button
+            [ HE.onClick \_ -> ToggleAutoReload
+            , HP.class_ (HH.ClassName "btn-small")
+            ]
+            [ HH.text
+                (if state.autoReload then "\x23F8" else "\x25B6")
+            ]
+        , HH.button
             [ HE.onClick \_ -> ChangeInterval (-5)
             , HP.class_ (HH.ClassName "btn-small")
-            , HP.disabled (state.interval <= 5)
+            , HP.disabled
+                (state.interval <= 5 || not state.autoReload)
             ]
             [ HH.text "-" ]
         , HH.span
             [ HP.class_
                 ( HH.ClassName
-                    if state.interval >= state.safeInterval then
-                      "timer-safe"
+                    if not state.autoReload then "muted"
+                    else if state.interval >= state.safeInterval then "timer-safe"
                     else "timer-unsafe"
                 )
             ]
             [ HH.text
-                ( show state.secondsLeft <> "s / "
-                    <> show state.interval
-                    <> "s"
+                ( if state.autoReload then
+                    show state.secondsLeft <> "s / "
+                      <> show state.interval
+                      <> "s"
+                  else "paused"
                 )
             ]
         , HH.button
             [ HE.onClick \_ -> ChangeInterval 5
             , HP.class_ (HH.ClassName "btn-small")
+            , HP.disabled (not state.autoReload)
             ]
             [ HH.text "+" ]
         , HH.text
@@ -550,10 +575,15 @@ renderHelp =
     [ HH.h3_ [ HH.text "Getting started" ]
     , HH.ol_
         [ HH.li_
-            [ HH.text "Create a "
-            , HH.strong_ [ HH.text "GitHub token" ]
+            [ HH.a
+                [ HP.href
+                    "https://github.com/settings/tokens/new?scopes=repo&description=GHA+Live"
+                , HP.target "_blank"
+                ]
+                [ HH.text "Create a token" ]
             , HH.text
-                " with read access to Actions and Pull Requests"
+                " with read access to Actions and Pull Requests, or run "
+            , HH.code_ [ HH.text "gh auth token" ]
             ]
         , HH.li_
             [ HH.text
@@ -689,6 +719,18 @@ renderForm state =
               , HP.class_ (HH.ClassName "btn")
               ]
               [ HH.text "Watch" ]
+          , HH.p
+              [ HP.class_ (HH.ClassName "hint") ]
+              [ HH.text "Tip: run "
+              , HH.code_ [ HH.text "gh auth token" ]
+              , HH.text " or "
+              , HH.a
+                  [ HP.href
+                      "https://github.com/settings/tokens/new?scopes=repo&description=GHA+Live"
+                  , HP.target "_blank"
+                  ]
+                  [ HH.text "create a token" ]
+              ]
           ]
       , case state.error of
           Just err ->
@@ -909,6 +951,9 @@ handleAction = case _ of
       st { showHelp = not st.showHelp }
   SetMobilePage page ->
     H.modify_ _ { mobilePage = page }
+  ToggleAutoReload ->
+    H.modify_ \st ->
+      st { autoReload = not st.autoReload }
   ResetAll -> do
     ok <- liftEffect do
       w <- window
@@ -1032,7 +1077,8 @@ handleAction = case _ of
     case st.config of
       Nothing -> pure unit
       Just cfg ->
-        if st.secondsLeft <= 1 then do
+        if not st.autoReload then pure unit
+        else if st.secondsLeft <= 1 then do
           H.modify_ _ { loading = true, secondsLeft = st.interval }
           doFetch cfg
         else
