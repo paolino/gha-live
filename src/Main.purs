@@ -1141,7 +1141,7 @@ doFetch cfg = do
             in
               Just (max 5 secs)
         newSafe = fromMaybe st'.safeInterval optInterval
-        newInterval = fromMaybe st'.interval optInterval
+        newInterval = max st'.interval newSafe
       H.modify_ _
         { pipeline = buildPipeline runs allJobs
         , loading = false
