@@ -75,6 +75,17 @@
     .target-title { color: #777; font-size: 12px; font-weight: 400; }
     .target-remove { color: #666; cursor: pointer; font-size: 12px; padding: 2px 6px; }
     .target-remove:hover { color: #f44336; }
+    .main svg { max-width: 100%; overflow-x: auto; display: block; }
+    @media (max-width: 700px) {
+      body { padding: 12px; }
+      .form-container { margin-top: 32px; }
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; border-right: none; padding-right: 0; border-bottom: 1px solid #333; padding-bottom: 12px; margin-bottom: 12px; }
+      .toolbar { flex-wrap: wrap; }
+      .toolbar-timer { margin-left: 0; }
+      .heading-title { font-size: 16px; }
+      .main { overflow-x: auto; }
+    }
   </style>
 </head>
 <body>
