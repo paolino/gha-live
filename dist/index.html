@@ -75,15 +75,25 @@
     .target-title { color: #777; font-size: 12px; font-weight: 400; }
     .target-remove { color: #666; cursor: pointer; font-size: 12px; padding: 2px 6px; }
     .target-remove:hover { color: #f44336; }
-    @media (max-width: 700px) {
+    .mobile-toggle { display: none; }
+    @media (max-width: 900px) {
       body { padding: 12px; }
       .form-container { margin-top: 32px; }
       .layout { flex-direction: column; }
-      .sidebar { width: 100%; border-right: none; padding-right: 0; border-bottom: 1px solid #333; padding-bottom: 12px; margin-bottom: 12px; }
+      .sidebar { width: 100%; border-right: none; padding-right: 0; }
+      .mobile-toggle { display: inline-block; }
+      .mobile-diagram .sidebar { display: none; }
+      .mobile-sidebar .main { display: none; }
       .toolbar { flex-wrap: wrap; }
       .toolbar-timer { margin-left: 0; }
       .heading-title { font-size: 16px; }
       .main { overflow-x: auto; }
+      .tree-owner { font-size: 14px; padding: 8px 0 2px; }
+      .tree-repo { font-size: 13px; padding: 4px 0 4px 8px; }
+      .tree-ref { font-size: 14px; padding: 6px 8px 6px 16px; }
+      .tree-ref-title { font-size: 12px; }
+      .tree-remove { font-size: 12px; padding: 2px 8px; }
+      .sidebar-title { font-size: 13px; }
     }
   </style>
 </head>
